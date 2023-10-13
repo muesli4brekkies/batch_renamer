@@ -1,6 +1,6 @@
 # batch_renamer
 
-**<ins>Recursively</ins>** renames files in current directory and subdirectories after their containing folders,
+**<ins>Recursively</ins>** renames files in current directory and subdirectories after their containing dirs,
 
 Like ;
 
