@@ -1,13 +1,15 @@
 # batch_renamer
 
-Renames files **recursiveley** like ;
+**Recursively** renames files in current directory and subdirectories after their containing folders,
+
+Like ;
 
 ```
 Parentdir/Dir/File.jpg >> Parentdir/Dir/ParentdirDir0.jpg
 Parentdir/Dir/File2.jpg >> Parentdir/Dir/ParentdirDir1.jpg
 Parentdir/Dir/anotherfile.jpg >> Parentdir/Dir/ParentdirDir3.jpg
-//etc
 ```
+etc.
 
 While it should not delete or overwite files, this prog is still potentially destructive.
 
