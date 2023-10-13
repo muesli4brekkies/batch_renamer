@@ -2,10 +2,12 @@
 
 Renames files **recursiveley** like ;
 
+```
 Parentdir/Dir/File.jpg >> Parentdir/Dir/ParentdirDir0.jpg
 Parentdir/Dir/File2.jpg >> Parentdir/Dir/ParentdirDir1.jpg
 Parentdir/Dir/anotherfile.jpg >> Parentdir/Dir/ParentdirDir3.jpg
-etc
+//etc
+```
 
 While it should not delete or overwite files, this prog is still potentially destructive.
 
