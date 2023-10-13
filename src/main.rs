@@ -9,6 +9,7 @@ fn main() {
         }
     }
     for file in valid_files {
-        println!("{}",file);
+        let dir :Vec<&str>= file.split("/").collect();
+        println!("{:?}",dir);
     }
 }
