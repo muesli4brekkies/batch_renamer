@@ -45,7 +45,7 @@ fn main() -> io::Result<()> {
             for file in &valid_files {
                 let dir_vec: Vec<&str> = file.split('/').collect();
                 let fd_len = dir_vec.len();
-                if fd_len > 3 {
+                if fd_len > 2 {
                     let file_name = &dir_vec[(fd_len - 3)..(fd_len - 1)].join("");
                     let file_dir = &dir_vec[..(fd_len - 1)].join("/");
                     println!(
