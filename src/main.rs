@@ -1,37 +1,29 @@
 use glob::glob;
-use std::collections::HashSet;
 use std::thread::JoinHandle;
 use std::{env, fs, io, thread};
 use walkdir::WalkDir;
 fn main() -> io::Result<()> {
     let num_threads = thread::available_parallelism()?;
-    let mut num_children:usize = 0;
-    let mut unique_dirs: HashSet<String> = HashSet::new();
-    for entry in WalkDir::new(".")
+    let unique_dirs: Vec<_> = WalkDir::new(".")
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| e.file_type().is_dir())
-    {
-        unique_dirs.insert(String::from(entry.path().to_string_lossy()));
-    }
+        .collect();
     let mut children = vec![];
-    for dir in unique_dirs {
-        if num_children == num_threads.get() {
-            children.into_iter().for_each(|c:JoinHandle<()>| c.join().unwrap());
+    for (num_children, dir) in unique_dirs.into_iter().enumerate() {
+        if num_children >= num_threads.get() {
+            children
+                .into_iter()
+                .for_each(|c: JoinHandle<()>| c.join().unwrap());
             children = vec![];
         }
-       num_children += 1; 
         children.push(thread::spawn(move || {
             let args: Vec<String> = env::args().collect();
-            let mut valid_files: Vec<String> = Vec::new();
-            for entry in glob(&format!("{}/*.jpg", dir)).unwrap() {
-                match entry {
-                    Ok(path) => valid_files.push(path.into_os_string().into_string().unwrap()),
-                    Err(e) => println!("{:?}", e),
-                }
-            }
-            let mut i = 0;
-            for file in &valid_files {
+            let valid_files: &Vec<String> = &glob(&format!("{}/*.jpg", dir.into_path().display()))
+                .unwrap()
+                .map(|e| e.unwrap().into_os_string().into_string().unwrap())
+                .collect();
+            for (i, file) in valid_files.iter().enumerate() {
                 let dir_vec: Vec<&str> = file.split('/').collect();
                 let fd_len = dir_vec.len();
                 let file_dir = &dir_vec[..(fd_len - 1)].join("/");
@@ -39,10 +31,8 @@ fn main() -> io::Result<()> {
                 if args.len() > 1 && args[1] == "GO" {
                     fs::rename(file, format!("{}/{}.tmp", file_dir, i)).unwrap();
                 }
-                i += 1;
             }
-            i = 0;
-            for file in &valid_files {
+            for (i, file) in valid_files.iter().enumerate() {
                 let dir_vec: Vec<&str> = file.split('/').collect();
                 let fd_len = dir_vec.len();
                 if fd_len > 2 {
@@ -60,14 +50,15 @@ fn main() -> io::Result<()> {
                         .unwrap();
                     }
                 }
-                i += 1;
             }
         }));
     }
+    children
+        .into_iter()
+        .for_each(|c: JoinHandle<()>| c.join().unwrap());
     let args: Vec<String> = env::args().collect();
     if args.len() == 1 {
         println!("Pass \"GO\" as an argument to execute renaming")
     };
-    children.into_iter().for_each(|c:JoinHandle<()>| c.join().unwrap());
     Ok(())
 }
