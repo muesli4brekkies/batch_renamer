@@ -68,7 +68,7 @@ fn main() -> io::Result<()> {
     children
         .into_iter()
         .for_each(|c: JoinHandle<()>| c.join().unwrap());
-    if is_go {
+    if !is_go {
         println!("Pass \"GO\" as an argument to execute renaming")
     };
     Ok(())
