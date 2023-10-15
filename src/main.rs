@@ -51,8 +51,8 @@ fn main() -> io::Result<()> {
     let num_threads = thread::available_parallelism()?;
     let unique_dirs = get_directories();
     let mut children = vec![];
-    for (num_children, dir) in unique_dirs.into_iter().enumerate() {
-        if num_children >= num_threads.get() {
+    for dir in unique_dirs {
+        if children.len() >= num_threads.get() {
             children
                 .into_iter()
                 .for_each(|c: JoinHandle<()>| c.join().unwrap());
