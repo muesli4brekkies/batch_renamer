@@ -1,17 +1,17 @@
 # batch_renamer
 
-**<ins>Recursively</ins>** renames .jpg files in subdirectories **at least** two steps away after their containing dirs,
+**<ins>Recursively</ins>** renames .jpg files in subdirectories after their containing dirs,
 
 Like ;
 
 ```
-Parent/Dir/File.jpg >> Parent/Dir/ParentDir0.jpg
+Foo/Bar/File.jpg >> Foo/Bar/FooBar0.jpg
 
-GrandparentParent/Dir/File.jpg >> Grandparent/Parent/Dir/ParentDir0.jpg 
+TopDir/Foo/Bar/File.jpg >> TopDir/Foo/Bar/FooBar0.jpg 
 
-Parent/Dir/File.jpg >> Parent/Dir/ParentDir0.jpg
-Parent/Dir/AnotherFile.jpg >> Parent/Dir/ParentDir1.jpg
-Parent/Dir/YetAnotherFile.jpg >> Parent/Dir/ParentDir2.jpg
+Foo/Bar/File.jpg >> Foo/Bar/FooBar0.jpg
+Foo/Bar/AnotherFile.jpg >> Foo/Bar/FooBar1.jpg
+Foo/Bar/YetAnotherFile.jpg >> Foo/Bar/FooBar2.jpg
 ```
 etc.
 

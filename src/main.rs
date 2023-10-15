@@ -31,6 +31,7 @@ fn rename_to_tmp(valid_files: Vec<String>, dir: &String, is_go: bool) {
 
 fn get_directories() -> Vec<String> {
   WalkDir::new(".")
+    .min_depth(2)
     .into_iter()
     .filter_map(Result::ok)
     .filter(|e| e.file_type().is_dir())
