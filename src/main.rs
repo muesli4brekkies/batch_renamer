@@ -3,7 +3,7 @@ use std::thread::JoinHandle;
 use std::{env, fs, io, thread};
 use walkdir::WalkDir;
 
-fn rename_to_new_name(num_files: usize, dir: &String, is_go: bool) {
+fn rename_to_new_name(num_files: usize, dir: &String, is_go: bool) -> Result<(),io::Error> {
   for i in 0..num_files {
     let dir_vec: Vec<&str> = dir.split('/').collect();
     if dir_vec.len() > 1 {
@@ -14,19 +14,21 @@ fn rename_to_new_name(num_files: usize, dir: &String, is_go: bool) {
           format!("{}/{}.tmp", dir, i),
           format!("{}/{}{}.jpg", dir, file_name, i),
         )
-        .unwrap();
+        ?;
       }
     }
   }
+  Ok(())
 }
 
-fn rename_to_tmp(valid_files: Vec<String>, dir: &String, is_go: bool) {
+fn rename_to_tmp(valid_files: Vec<String>, dir: &String, is_go: bool) -> Result<(),io::Error> {
   for (i, file) in valid_files.iter().enumerate() {
     println!("{} >t> {}/{}.tmp", file, dir, i);
     if is_go {
-      fs::rename(file, format!("{}/{}.tmp", dir, i)).unwrap();
+      fs::rename(file, format!("{}/{}.tmp", dir, i))?;
     }
   }
+  Ok(())
 }
 
 fn get_directories() -> Vec<String> {
@@ -39,11 +41,10 @@ fn get_directories() -> Vec<String> {
     .collect()
 }
 
-fn glob_files(dir: &String) -> Vec<String> {
-  glob(&format!("{}/*.jpg", dir))
-    .unwrap()
+fn glob_files(dir: &String) -> Result<Vec<String>,glob::PatternError> {
+  Ok(glob(&format!("{}/*.jpg", dir))?
     .map(|e| e.unwrap().into_os_string().into_string().unwrap())
-    .collect()
+    .collect())
 }
 
 fn main() -> io::Result<()> {
@@ -51,19 +52,19 @@ fn main() -> io::Result<()> {
   let is_go: bool = args.len() > 1 && args[1] == "GO";
   let num_threads = thread::available_parallelism()?.get();
   let unique_dirs = get_directories();
-  let mut children = vec![];
+  let mut children:Vec<JoinHandle<()>> = vec![];
   for dir in unique_dirs {
     if children.len() >= num_threads {
-      children
-        .into_iter()
-        .for_each(|c: JoinHandle<()>| c.join().unwrap());
+        for child in children {
+            child.join().expect("poop")
+        }
       children = vec![];
     }
     children.push(thread::spawn(move || {
-      let valid_files = glob_files(&dir);
+      let valid_files = glob_files(&dir).expect("Glob pattern error!");
       let num_files = valid_files.len();
-      rename_to_tmp(valid_files, &dir, is_go);
-      rename_to_new_name(num_files, &dir, is_go);
+      rename_to_tmp(valid_files, &dir, is_go).expect("Temp file write error!");
+      rename_to_new_name(num_files, &dir, is_go).expect("Rename from temp file error!");
     }));
   }
   children
