@@ -30,7 +30,7 @@ Look first to see if it will do what you want.
 
 And pass "GO" as the first argument to execute renaming.
 
-# todo 
+## todo 
 * Capture args and include in glob to search for other file extensions
 * Optional rename depth from args
 * Other args as well, such as -h help screen as run default, -d for dry run, -G to exec with confirmation
