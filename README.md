@@ -24,14 +24,20 @@ This prog is nondestructive and should not delete or overwite files, but will ch
 
 ## usage
 
-When run no arguments will print a dry-run.
+
+batch_renamer -x -q -g "glob pattern" 
+
+
+When run with no arguments will print a dry-run and the help screen.
+
+-x                - Execute renaming, use with caution.
+-q                - Quiet mode - Suppress prints to terminal.
+-g "glob pattern" - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
+-h                - Print help and exit.
 
 Look first to see if it will do what you want.
 
-And pass "GO" as the first argument to execute renaming.
-
 ## todo 
-* Capture args and include in glob to search for other file extensions
+* Capture args and include in glob to search for other file extensions - DONE
 * Optional rename depth from args
-* Other args as well, such as -h help screen as run default, -d for dry run, -G to exec with confirmation
-
+* Other args as well, such as -h help screen as run default, -d for dry run, -G to exec with confirmation - DONE
