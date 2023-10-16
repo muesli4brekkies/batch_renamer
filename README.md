@@ -25,15 +25,15 @@ This prog is nondestructive and should not delete or overwite files, but will ch
 ## usage
 
 
-batch_renamer -x -q -g "glob pattern" 
+`batch_renamer -x -q -g "glob pattern"`
 
 
 When run with no arguments will print a dry-run and the help screen.
 
--x                - Execute renaming, use with caution.
--q                - Quiet mode - Suppress prints to terminal.
--g "glob pattern" - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
--h                - Print help and exit.
+* -x                - Execute renaming, use with caution.
+* -q                - Quiet mode - Suppress prints to terminal.
+* -g "glob pattern" - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
+* -h                - Print help and exit.
 
 Look first to see if it will do what you want.
 
