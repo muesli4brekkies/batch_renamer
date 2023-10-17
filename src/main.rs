@@ -109,6 +109,9 @@ fn handle_args() -> (bool, bool, bool, String) {
           i += 1;
           if args.len() >= i && arg == "-g" {
             glob = args[i].to_string();
+          } else {
+            println!("Error: -g requires a glob pattern as an additional argument.");
+            print_help_and_gtfo();
           }
         }
       }
