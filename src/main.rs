@@ -17,7 +17,7 @@ fn rename_to_new_name(
     if is_verbose {
       println!(
         "{}/{}{} >r> {}/{}{}.{}",
-        dir, i, dir, file_name, i, file_ext_list[i], TEMP_NAME
+        dir, i, TEMP_NAME,dir, file_name, i, file_ext_list[i],
       );
     }
     if is_go {
@@ -167,7 +167,8 @@ fn main() -> io::Result<()> {
   }
   if is_practice_run {
     println!("This was a practice run. -x to execute renaming. Be careful.");
-  } else {
+  } 
+  if is_go {
     println!("Renaming executed.")
   };
   Ok(())
