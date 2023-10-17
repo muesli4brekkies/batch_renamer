@@ -1,6 +1,6 @@
 # batch_renamer
 
-**<ins>Recursively</ins>** renames .jpg files in subdirectories after their containing dirs,
+**<ins>Recursively</ins>** renames files in subdirectories after their containing dirs,
 
 Like ;
 
@@ -11,27 +11,32 @@ Foo/Bar/YetAnotherFile.jpg >> Foo/Bar/FooBar2.jpg
 ...
 
 TopDir/Foo/Bar/File.jpg >> TopDir/Foo/Bar/FooBar0.jpg 
+...
+Foo/Bar/File.jpg >> Foo/Bar/FooBar0.jpg
+Foo/Bar/AnotherFile.jpg >> Foo/Bar/FooBar1.jpg
+Foo/Bar/AnotherFile.png >> Foo/Bar/AnotherFile.jpg
+
 ```
 etc.
 
 Will ignore files only 1 subdirectory deep and in current dir.
 
-If anything goes wrong, check for .tmp files. 
-
 Files are first written to temporary files to avoid clobbering. 
 
-This prog is nondestructive and should not delete or overwite files, but will cheerfully rename every .jpg on your PC if allowed. Do be careful.
+If anything goes wrong, check for .batcher_renamertmp files. Nothing should be lost.
+
+This prog is nondestructive and should not delete or overwite files, but will cheerfully rename every file on your PC if allowed. Do be careful.
 
 ## usage
 
 
-`batch_renamer -x -q -g "glob pattern"`
-
-
-When run with no arguments will print a dry-run and the help screen.
+`./batch_renamer -[xvdh] -g "glob pattern"`
+for example
+`./batch_renamer -xv -g "*.png"`
 
 * -x                - Execute renaming, use with caution.
-* -q                - Quiet mode - Suppress prints to terminal.
+* -v                - Verbose mode. Print actions to terminal
+* -d                - Dry run, no file manipulation. Combine with -v.
 * -g "glob pattern" - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
 * -h                - Print help and exit.
 

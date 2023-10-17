@@ -6,20 +6,24 @@ use walkdir::WalkDir;
 fn rename_to_new_name(
   num_files: usize,
   dir: &String,
+  file_ext_list: Vec<&str>,
   is_go: bool,
-  is_quiet: bool,
+  is_verbose: bool,
 ) -> Result<(), io::Error> {
   for i in 0..num_files {
     let dir_vec: Vec<&str> = dir.split('/').collect();
     if dir_vec.len() > 1 {
       let file_name = dir_vec[(dir_vec.len() - 2)..].join("");
-      if !is_quiet {
-        println!("{}/{}.tmp >r> {}/{}{}.jpg", dir, i, dir, file_name, i);
+      if is_verbose {
+        println!(
+          "{}/{}.batcher_renamertmp >r> {}/{}{}.{}",
+          dir, i, dir, file_name, i, file_ext_list[i]
+        );
       }
       if is_go {
         fs::rename(
-          format!("{}/{}.tmp", dir, i),
-          format!("{}/{}{}.jpg", dir, file_name, i),
+          format!("{}/{}.batcher_renamertmp", dir, i),
+          format!("{}/{}{}.{}", dir, file_name, i, file_ext_list[i]),
         )?;
       }
     }
@@ -27,20 +31,23 @@ fn rename_to_new_name(
   Ok(())
 }
 
-fn rename_to_tmp(
+fn rename_files(
   valid_files: Vec<String>,
   dir: &String,
   is_go: bool,
-  is_quiet: bool,
+  is_verbose: bool,
 ) -> Result<(), io::Error> {
+  let mut file_ext_list: Vec<&str> = vec![];
   for (i, file) in valid_files.iter().enumerate() {
-    if !is_quiet {
-      println!("{} >t> {}/{}.tmp", file, dir, i);
+    file_ext_list.push(file.split('.').last().unwrap());
+    if is_verbose {
+      println!("{} >t> {}/{}.batcher_renamertmp", file, dir, i);
     }
     if is_go {
-      fs::rename(file, format!("{}/{}.tmp", dir, i))?;
+      fs::rename(file, format!("{}/{}.batcher_renamertmp", dir, i))?;
     }
   }
+  rename_to_new_name(valid_files.len(), &dir, file_ext_list, is_go, is_verbose)?;
   Ok(())
 }
 
@@ -65,14 +72,34 @@ fn glob_files(dir: &String, glob_str: &String) -> Result<Vec<String>, glob::Patt
 fn handle_args() -> (bool, bool, bool, String) {
   let args: Vec<String> = env::args().collect();
   let mut is_go = false;
-  let mut is_quiet = false;
-  let mut is_help_or_default = false;
+  let mut is_verbose = false;
+  let mut is_dry_run = false;
   let mut glob = String::from("*.jpg");
   for arg in &args {
+    if args.len() == 1 {
+      print_help_and_gtfo()
+    };
     match arg.as_str() {
+      "-v" => is_verbose = true,
       "-x" => is_go = true,
-      "-q" => is_quiet = true,
-      "-h" => is_help_or_default = true,
+      "-xv" => {
+        is_go = true;
+        is_verbose = true
+      }
+      "-vx" => {
+        is_go = true;
+        is_verbose = true
+      }
+      "-d" => is_dry_run = true,
+      "-dv" => {
+        is_dry_run = true;
+        is_verbose = true
+      }
+      "-vd" => {
+        is_dry_run = true;
+        is_verbose = true
+      }
+      "-h" => print_help_and_gtfo(),
       "-g" => {
         let mut i = 0;
         for arg in &args {
@@ -86,25 +113,30 @@ fn handle_args() -> (bool, bool, bool, String) {
     }
   }
 
-  (is_go, is_quiet, is_help_or_default, glob)
+  (is_go, is_verbose, is_dry_run, glob)
 }
 
 fn print_help_and_gtfo() {
-  println!(r#"batch_renamer - Renames files after previous directories");
-          ----
-          -usage - batch_renamer <args> <\"glob-string\">
-          ----
-          -options -x               - Execute renaming. Use with caution.
-          -q               - Suppress terminal printing.
-          -g \"glob_string\" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.
-          -h               - Print this screen and exit."#);
+  println!(
+    r#"batch_renamer - Renames files after previous directories"
+                  ----
+usage - ./batch_renamer <args> <"glob-string">
+for example:- ./batch_renamer -xv -g "*.png"
+                  ----
+options 
+        -x               - Execute renaming. Use with caution.
+        -v               - Enable terminal printing.
+        -d               - Dry run. Combine with -v to print what the script will do
+        -g \"glob_string\" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.
+        -h               - Print this screen and exit."#
+  );
   std::process::exit(0)
 }
 
 fn main() -> io::Result<()> {
-  let (is_go, is_quiet, is_help_or_default, glob) = handle_args();
-  if is_help_or_default {
-    print_help_and_gtfo();
+  let (is_go, is_verbose, is_dry_run, glob) = handle_args();
+  if is_dry_run || is_go && !is_verbose {
+    println!("Terminal printing disabled, pass -v to enable")
   }
   let num_threads: usize = thread::available_parallelism()?.get();
   let unique_dirs: Vec<String> = get_directories();
@@ -119,9 +151,7 @@ fn main() -> io::Result<()> {
       }
       children.push(s.spawn(|| -> Result<(), io::Error> {
         let valid_files: Vec<String> = glob_files(&dir, &glob).expect("Glob pattern error!");
-        let num_files: usize = valid_files.len();
-        rename_to_tmp(valid_files, &dir, is_go, is_quiet)?;
-        rename_to_new_name(num_files, &dir, is_go, is_quiet)?;
+        rename_files(valid_files, &dir, is_go, is_verbose)?;
         Ok(())
       }));
       for child in children {
@@ -130,9 +160,8 @@ fn main() -> io::Result<()> {
       Ok::<(), io::Error>(())
     })?;
   }
-  if !is_go {
+  if is_dry_run {
     println!("This was a dry-run. Pass \"-x\" as an argument to execute renaming");
-    print_help_and_gtfo();
   } else {
     println!("Renaming executed")
   };
