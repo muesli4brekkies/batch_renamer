@@ -7,15 +7,11 @@ Like ;
 ```
 Foo/Bar/File.jpg >> Foo/Bar/FooBar0.jpg
 Foo/Bar/AnotherFile.jpg >> Foo/Bar/FooBar1.jpg
+Foo/Bar/ADifferentFile.png >> Foo/Bar/ADifferentFile.png
 Foo/Bar/YetAnotherFile.jpg >> Foo/Bar/FooBar2.jpg
 ...
 
 TopDir/Foo/Bar/File.jpg >> TopDir/Foo/Bar/FooBar0.jpg 
-...
-Foo/Bar/File.jpg >> Foo/Bar/FooBar0.jpg
-Foo/Bar/AnotherFile.jpg >> Foo/Bar/FooBar1.jpg
-Foo/Bar/AnotherFile.png >> Foo/Bar/AnotherFile.jpg
-
 ```
 etc.
 
