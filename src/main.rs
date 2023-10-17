@@ -12,20 +12,18 @@ fn rename_to_new_name(
 ) -> Result<(), io::Error> {
   for i in 0..num_files {
     let dir_vec: Vec<&str> = dir.split('/').collect();
-    if dir_vec.len() > 1 {
-      let file_name = dir_vec[(dir_vec.len() - 2)..].join("");
-      if is_verbose {
-        println!(
-          "{}/{}.batcher_renamertmp >r> {}/{}{}.{}",
-          dir, i, dir, file_name, i, file_ext_list[i]
-        );
-      }
-      if is_go {
-        fs::rename(
-          format!("{}/{}.batcher_renamertmp", dir, i),
-          format!("{}/{}{}.{}", dir, file_name, i, file_ext_list[i]),
-        )?;
-      }
+    let file_name = dir_vec[(dir_vec.len() - 2)..].join("");
+    if is_verbose {
+      println!(
+        "{}/{}.batcher_renamertmp >r> {}/{}{}.{}",
+        dir, i, dir, file_name, i, file_ext_list[i]
+      );
+    }
+    if is_go {
+      fs::rename(
+        format!("{}/{}.batcher_renamertmp", dir, i),
+        format!("{}/{}{}.{}", dir, file_name, i, file_ext_list[i]),
+      )?;
     }
   }
   Ok(())
@@ -39,7 +37,11 @@ fn rename_files(
 ) -> Result<(), io::Error> {
   let mut file_ext_list: Vec<&str> = vec![];
   for (i, file) in valid_files.iter().enumerate() {
-    file_ext_list.push(file.split('.').last().unwrap());
+    match file.split('.').last() {
+      Some(file_ext) => file_ext_list.push(file_ext),
+      None => file_ext_list.push(""),
+    }
+
     if is_verbose {
       println!("{} >t> {}/{}.batcher_renamertmp", file, dir, i);
     }
