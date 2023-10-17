@@ -115,8 +115,8 @@ fn main() -> io::Result<()> {
         for child in children {
           child.join().unwrap()?;
         }
+        children = vec![];
       }
-      children = vec![];
       children.push(s.spawn(|| -> Result<(), io::Error> {
         let valid_files: Vec<String> = glob_files(&dir, &glob).expect("Glob pattern error!");
         let num_files: usize = valid_files.len();
