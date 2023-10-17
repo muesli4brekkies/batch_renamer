@@ -2,6 +2,7 @@ use glob::glob;
 use std::thread::ScopedJoinHandle;
 use std::{env, fs, io, thread};
 use walkdir::WalkDir;
+const TEMP_NAME: &'static str = ".batcher_renamertmp";
 
 fn rename_to_new_name(
   num_files: usize,
@@ -15,13 +16,13 @@ fn rename_to_new_name(
     let file_name = dir_vec[(dir_vec.len() - 2)..].join("");
     if is_verbose {
       println!(
-        "{}/{}.batcher_renamertmp >r> {}/{}{}.{}",
-        dir, i, dir, file_name, i, file_ext_list[i]
+        "{}/{}{} >r> {}/{}{}.{}",
+        dir, i, dir, file_name, i, file_ext_list[i], TEMP_NAME
       );
     }
     if is_go {
       fs::rename(
-        format!("{}/{}.batcher_renamertmp", dir, i),
+        format!("{}/{}{}", dir, i, TEMP_NAME),
         format!("{}/{}{}.{}", dir, file_name, i, file_ext_list[i]),
       )?;
     }
@@ -43,10 +44,10 @@ fn rename_files(
     }
 
     if is_verbose {
-      println!("{} >t> {}/{}.batcher_renamertmp", file, dir, i);
+      println!("{} >t> {}/{}{}", file, dir, i, TEMP_NAME);
     }
     if is_go {
-      fs::rename(file, format!("{}/{}.batcher_renamertmp", dir, i))?;
+      fs::rename(file, format!("{}/{}{}", dir, i, TEMP_NAME))?;
     }
   }
   rename_to_new_name(valid_files.len(), &dir, file_ext_list, is_go, is_verbose)?;
@@ -75,7 +76,7 @@ fn handle_args() -> (bool, bool, bool, String) {
   let args: Vec<String> = env::args().collect();
   let mut is_go = false;
   let mut is_verbose = false;
-  let mut is_dry_run = false;
+  let mut is_practice_run = false;
   let mut glob = String::from("*.jpg");
   for arg in &args {
     if args.len() == 1 {
@@ -92,13 +93,13 @@ fn handle_args() -> (bool, bool, bool, String) {
         is_go = true;
         is_verbose = true
       }
-      "-d" => is_dry_run = true,
-      "-dv" => {
-        is_dry_run = true;
+      "-p" => is_practice_run = true,
+      "-pv" => {
+        is_practice_run = true;
         is_verbose = true
       }
       "-vd" => {
-        is_dry_run = true;
+        is_practice_run = true;
         is_verbose = true
       }
       "-h" => print_help_and_gtfo(),
@@ -115,7 +116,7 @@ fn handle_args() -> (bool, bool, bool, String) {
     }
   }
 
-  (is_go, is_verbose, is_dry_run, glob)
+  (is_go, is_verbose, is_practice_run, glob)
 }
 
 fn print_help_and_gtfo() {
@@ -123,22 +124,23 @@ fn print_help_and_gtfo() {
     r#"batch_renamer - Renames files after previous directories"
                   ----
 usage - ./batch_renamer <args> <"glob-string">
+
 for example:- ./batch_renamer -xv -g "*.png"
                   ----
 options 
         -x               - Execute renaming. Use with caution.
         -v               - Enable terminal printing.
-        -d               - Dry run. Combine with -v to print what the script will do
-        -g \"glob_string\" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.
+        -p               - Practice run. Combine with -v to print what the script will do.
+        -g "glob_string" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.
         -h               - Print this screen and exit."#
   );
   std::process::exit(0)
 }
 
 fn main() -> io::Result<()> {
-  let (is_go, is_verbose, is_dry_run, glob) = handle_args();
-  if is_dry_run || is_go && !is_verbose {
-    println!("Terminal printing disabled, pass -v to enable")
+  let (is_go, is_verbose, is_practice_run, glob) = handle_args();
+  if is_practice_run || is_go && !is_verbose {
+    println!("Terminal printing disabled, -v to enable.")
   }
   let num_threads: usize = thread::available_parallelism()?.get();
   let unique_dirs: Vec<String> = get_directories();
@@ -162,10 +164,10 @@ fn main() -> io::Result<()> {
       Ok::<(), io::Error>(())
     })?;
   }
-  if is_dry_run {
-    println!("This was a dry-run. Pass \"-x\" as an argument to execute renaming");
+  if is_practice_run {
+    println!("This was a practice run. -x to execute renaming. Be careful.");
   } else {
-    println!("Renaming executed")
+    println!("Renaming executed.")
   };
   Ok(())
 }

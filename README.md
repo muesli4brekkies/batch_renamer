@@ -15,30 +15,36 @@ TopDir/Foo/Bar/File.jpg >> TopDir/Foo/Bar/FooBar0.jpg
 ```
 etc.
 
-Will ignore files only 1 subdirectory deep and in current dir.
-
-Files are first written to temporary files to avoid clobbering. 
-
-If anything goes wrong, check for .batcher_renamertmp files. Nothing should be lost.
-
-This prog is nondestructive and should not delete or overwite files, but will cheerfully rename every file on your PC if allowed. Do be careful.
 
 ## usage
-
 
 `./batch_renamer -[xvdh] -g "glob pattern"`
 for example
 `./batch_renamer -xv -g "*.png"`
 
-* -x                - Execute renaming, use with caution.
-* -v                - Verbose mode. Print actions to terminal
-* -d                - Dry run, no file manipulation. Combine with -v.
-* -g "glob pattern" - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
-* -h                - Print help and exit.
+* **-x**                - Execute renaming, use with caution.
+* **-v**                - Verbose mode. Print actions to terminal
+* **-p**                - Practice run, no file manipulation. Combine with -v.
+* **-g "glob pattern"** - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
+* **-h**                - Print help and exit.
 
-Look first to see if it will do what you want.
+## notes
+
+Works recursively from the directory it is run from.
+
+Will ignore files in current dir and 1 subdirectory deep.
+
+Files are first renamed to temporary files to avoid clobbering. 
+
+If anything goes wrong, check for .batcher_renamertmp files. Nothing should be lost.
+
+This prog is nondestructive and should not delete or overwite files.
+
+But will cheerfully, and very quickly, rename every file on your PC if allowed, breaking ***everything***. Do be careful.
+
+For instance, `./batch_renamer -x -g "*"` run from the root dir would be a killer.
+
+**Look first to see if it will do what you want.**
 
 ## todo 
-* Capture args and include in glob to search for other file extensions - DONE
-* Optional rename depth from args
-* Other args as well, such as -h help screen as run default, -d for dry run, -G to exec with confirmation - DONE
+* Optional rename depth (one dir, three dirs) 
