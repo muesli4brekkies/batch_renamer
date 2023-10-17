@@ -109,6 +109,7 @@ fn handle_args() -> (bool, bool, bool, String) {
           i += 1;
           if args.len() >= i && arg == "-g" {
             glob = args[i].to_string();
+            return (is_go, is_verbose, is_practice_run, glob);
           }
         }
       }
@@ -131,7 +132,7 @@ options
         -x               - Execute renaming. Use with caution.
         -v               - Enable terminal printing.
         -p               - Practice run. Combine with -v to print what the script will do.
-        -g "glob_string" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.
+        -g "glob_string" - Optional. This prog defaults to globbing "*.jpg" files, but any similar glob can be searched for.
         -h               - Print this screen and exit."#
   );
   std::process::exit(0)
