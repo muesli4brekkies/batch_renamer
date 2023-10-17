@@ -2,7 +2,7 @@ use glob::glob;
 use std::thread::ScopedJoinHandle;
 use std::{env, fs, io, thread};
 use walkdir::WalkDir;
-const TEMP_NAME: &'static str = ".batcher_renamertmp";
+const TEMP_NAME: &'static str = ".brtmp";
 
 fn rename_to_new_name(
   num_files: usize,

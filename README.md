@@ -36,7 +36,7 @@ Will ignore files in current dir and 1 subdirectory deep.
 
 Files are first renamed to temporary files to avoid clobbering. 
 
-If anything goes wrong, check for .batcher_renamertmp files. Nothing should be lost.
+If anything goes wrong, check for .brtmp files. Nothing should be lost.
 
 This prog is nondestructive and should not delete or overwite files.
 
