@@ -18,7 +18,7 @@ etc.
 
 ## usage
 
-`./batch_renamer -[xvdh] -g "glob pattern"`
+`./batch_renamer -[xvph] -g "glob pattern"`
 for example
 `./batch_renamer -xv -g "*.png"`
 

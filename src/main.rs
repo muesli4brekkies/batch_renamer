@@ -98,7 +98,7 @@ fn handle_args() -> (bool, bool, bool, String) {
         is_practice_run = true;
         is_verbose = true
       }
-      "-vd" => {
+      "-vp" => {
         is_practice_run = true;
         is_verbose = true
       }
