@@ -1,5 +1,5 @@
 use glob::glob;
-use std::thread::JoinHandle;
+use std::thread::ScopedJoinHandle;
 use std::{env, fs, io, thread};
 use walkdir::WalkDir;
 
@@ -54,7 +54,7 @@ fn get_directories() -> Vec<String> {
     .collect()
 }
 
-fn glob_files(dir: &String, glob_str: String) -> Result<Vec<String>, glob::PatternError> {
+fn glob_files(dir: &String, glob_str: &String) -> Result<Vec<String>, glob::PatternError> {
   Ok(
     glob(&format!("{}/{}", dir, glob_str))?
       .map(|e| e.unwrap().into_os_string().into_string().unwrap())
@@ -90,14 +90,14 @@ fn handle_args() -> (bool, bool, bool, String) {
 }
 
 fn print_help_and_gtfo() {
-  println!("batch_renamer - Renames files after previous directories");
-  println!("---");
-  println!("usage - batch_renamer <args> <\"glob-string\">");
-  println!("---");
-  println!("options -x               - Execute renaming. Use with caution.");
-  println!("        -q               - Suppress terminal printing");
-  println!("        -g \"glob_string\" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.");
-  println!("        -h               - Print this screen and exit.");
+  println!(r#"batch_renamer - Renames files after previous directories");
+          ----
+          -usage - batch_renamer <args> <\"glob-string\">
+          ----
+          -options -x               - Execute renaming. Use with caution.
+          -q               - Suppress terminal printing.
+          -g \"glob_string\" - Optional. This prog defaults to globbing \"*.jpg\" files, but any similar glob can be searched for.
+          -h               - Print this screen and exit."#);
   std::process::exit(0)
 }
 
@@ -108,25 +108,27 @@ fn main() -> io::Result<()> {
   }
   let num_threads: usize = thread::available_parallelism()?.get();
   let unique_dirs: Vec<String> = get_directories();
-  let mut children: Vec<JoinHandle<Result<(), io::Error>>> = vec![];
   for dir in unique_dirs {
-    if children.len() >= num_threads {
+    thread::scope(|s| {
+      let mut children: Vec<ScopedJoinHandle<Result<(), io::Error>>> = vec![];
+      if children.len() >= num_threads {
+        for child in children {
+          child.join().unwrap()?;
+        }
+      }
+      children = vec![];
+      children.push(s.spawn(|| -> Result<(), io::Error> {
+        let valid_files: Vec<String> = glob_files(&dir, &glob).expect("Glob pattern error!");
+        let num_files: usize = valid_files.len();
+        rename_to_tmp(valid_files, &dir, is_go, is_quiet)?;
+        rename_to_new_name(num_files, &dir, is_go, is_quiet)?;
+        Ok(())
+      }));
       for child in children {
         child.join().unwrap()?;
       }
-      children = vec![];
-    }
-    let childs_glob = glob.clone();
-    children.push(thread::spawn(move || -> Result<(), io::Error> {
-      let valid_files: Vec<String> = glob_files(&dir, childs_glob).expect("Glob pattern error!");
-      let num_files: usize = valid_files.len();
-      rename_to_tmp(valid_files, &dir, is_go, is_quiet)?;
-      rename_to_new_name(num_files, &dir, is_go, is_quiet)?;
-      Ok(())
-    }));
-  }
-  for child in children {
-    child.join().unwrap()?;
+      Ok::<(), io::Error>(())
+    })?;
   }
   if !is_go {
     println!("This was a dry-run. Pass \"-x\" as an argument to execute renaming");
