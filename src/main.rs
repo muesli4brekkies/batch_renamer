@@ -1,10 +1,11 @@
 use glob::glob;
 use std::thread::ScopedJoinHandle;
-use std::{env, fs, io, sync, thread};
+use std::{time,env, fs, io, sync, thread};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
 
 fn main() -> io::Result<()> {
+    let start_time = time::SystemTime::now();
   let (is_go, is_verbose, glob) = handle_args();
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
@@ -37,14 +38,14 @@ fn main() -> io::Result<()> {
       Ok::<(), io::Error>(())
     })?;
   }
-  let tot_files = num_files.into_inner();
+  let tot_files = num_files.into_inner() as f64;
+  let time_elapsed = time::SystemTime::now().duration_since(start_time).unwrap().as_secs_f64();
+  println!("{} files in {} seconds. {:.0} files/sec", tot_files, time_elapsed,tot_files/time_elapsed);
   if !is_go {
     println!("This was a practice run. -x to execute renaming. Be careful.");
   } else {
     println!("Renaming executed.");
-    println!("{} files", tot_files)
   };
-  println!("{} files", tot_files);
   println!("glob = \"{}\"", &glob);
   Ok(())
 }
@@ -63,7 +64,7 @@ fn rename_files(
     }
 
     if is_verbose {
-      println!("{} >t> {}/{}{}", file, dir, i, TEMP_NAME);
+      println!("./{} >t> {}/{}{}", file, dir, i, TEMP_NAME);
     }
     if is_go {
       fs::rename(file, format!("{}/{}{}", dir, i, TEMP_NAME))?;
