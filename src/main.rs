@@ -1,12 +1,19 @@
+use exif;
 use glob::glob;
 use std::thread::ScopedJoinHandle;
-use std::{time,env, fs, io, sync, thread};
+use std::{env, fs, io, sync, thread, time, vec};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
 
+#[derive(PartialEq, PartialOrd, Debug)]
+struct FileDate<'a> {
+  filename: &'a String,
+  date: String,
+}
+
 fn main() -> io::Result<()> {
-    let start_time = time::SystemTime::now();
-  let (is_go, is_verbose, glob) = handle_args();
+  let start_time = time::SystemTime::now();
+  let (is_go, is_verbose, is_sort, glob) = handle_args();
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
   }
@@ -27,7 +34,7 @@ fn main() -> io::Result<()> {
         {
           *num_files.get_mut() += valid_files.len();
         }
-        rename_files(valid_files, &dir, is_go, is_verbose)?;
+        rename_files(valid_files, &dir, is_go, is_verbose, is_sort)?;
         Ok(())
       }));
       if i == unique_dirs.len() - 1 {
@@ -39,8 +46,16 @@ fn main() -> io::Result<()> {
     })?;
   }
   let tot_files = num_files.into_inner() as f64;
-  let time_elapsed = time::SystemTime::now().duration_since(start_time).unwrap().as_secs_f64();
-  println!("{} files in {} seconds. {:.0} files/sec", tot_files, time_elapsed,tot_files/time_elapsed);
+  let time_elapsed = time::SystemTime::now()
+    .duration_since(start_time)
+    .unwrap()
+    .as_secs_f64();
+  println!(
+    "{} files in {} seconds. {:.0} files/sec",
+    tot_files,
+    time_elapsed,
+    tot_files / time_elapsed
+  );
   if !is_go {
     println!("This was a practice run. -x to execute renaming. Be careful.");
   } else {
@@ -50,19 +65,42 @@ fn main() -> io::Result<()> {
   Ok(())
 }
 
+fn sort_by_date(valid_files: Vec<String>) -> Vec<String> {
+  let mut exif_list: Vec<FileDate> = valid_files
+    .iter()
+    .map(|file| FileDate {
+      filename: file,
+      date: exif::Field::display_value(
+        exif::Reader::new()
+          .read_from_container(&mut io::BufReader::new(fs::File::open(file).unwrap()))
+          .unwrap()
+          .get_field(exif::Tag::DateTime, exif::In::PRIMARY)
+          .unwrap(),
+      )
+      .to_string(),
+    })
+    .collect();
+  exif_list.sort_by_key(|d| d.date.clone());
+  exif_list.iter().map(|f| f.filename.to_owned()).collect()
+}
+
 fn rename_files(
-  valid_files: Vec<String>,
+  mut valid_files: Vec<String>,
   dir: &String,
   is_go: bool,
   is_verbose: bool,
+  is_sort: bool,
 ) -> Result<(), io::Error> {
+  if is_sort {
+    valid_files = sort_by_date(valid_files);
+  }
+
   let mut file_ext_list: Vec<&str> = vec![];
   for (i, file) in valid_files.iter().enumerate() {
     match file.split('.').last() {
       Some(file_ext) => file_ext_list.push(file_ext),
       None => file_ext_list.push(""),
     }
-
     if is_verbose {
       println!("./{} >t> {}/{}{}", file, dir, i, TEMP_NAME);
     }
@@ -108,17 +146,21 @@ fn glob_files(dir: &String, glob_str: &String) -> Result<Vec<String>, glob::Patt
   )
 }
 
-fn handle_args() -> (bool, bool, String) {
+fn handle_args() -> (bool, bool, bool, String) {
   let args: Vec<String> = env::args().collect();
   let mut is_go = false;
   let mut is_verbose = false;
   let mut is_practice_run = false;
+  let mut is_sort = false;
   let mut glob = String::from("*.jpg");
 
   if args.len() == 1 {
     print_help_and_gtfo()
   };
   for (i, arg) in args.iter().enumerate() {
+    if arg == "-s" {
+      is_sort = true;
+    }
     if arg == "-v" || arg == "-vx" || arg == "-xv" || arg == "-pv" || arg == "-vp" {
       is_verbose = true;
     }
@@ -148,7 +190,7 @@ fn handle_args() -> (bool, bool, String) {
     println!("\nArguments error: Don't mix -x and -p ya dingus!");
     print_help_and_gtfo();
   }
-  (is_go, is_verbose, glob)
+  (is_go, is_verbose, is_sort, glob)
 }
 
 fn print_help_and_gtfo() {
@@ -162,6 +204,7 @@ options
         -v               - Enable terminal printing.
         -p               - Practice run. Combine with -v to print what the script will do.
         -g "glob_string" - Optional. This prog defaults to globbing "*.jpg" files, but any similar glob can be searched for.
+        -s               - Sort by EXIF time and date ascending.
         -h               - Print this screen and exit."#
   );
   std::process::exit(0)
