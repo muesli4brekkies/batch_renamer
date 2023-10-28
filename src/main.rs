@@ -5,13 +5,12 @@ use std::{env, fs, io, sync, thread, time, vec};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
 
-#[derive(PartialEq, PartialOrd, Debug)]
 struct FileDate<'a> {
   filename: &'a String,
   date: String,
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(),io::Error> {
   let start_time = time::SystemTime::now();
   let (is_go, is_verbose, is_sort, glob) = handle_args();
   if !is_verbose {
@@ -158,19 +157,20 @@ fn handle_args() -> (bool, bool, bool, String) {
     print_help_and_gtfo()
   };
   for (i, arg) in args.iter().enumerate() {
-    if arg == "-s" {
+    if i == 0 {continue;};
+    if arg.contains('s') {
       is_sort = true;
     }
-    if arg == "-v" || arg == "-vx" || arg == "-xv" || arg == "-pv" || arg == "-vp" {
+    if arg.contains('v') {
       is_verbose = true;
     }
-    if arg == "-x" || arg == "-vx" || arg == "-xv" {
+    if arg.contains('x') {
       is_go = true;
     }
-    if arg == "-p" || arg == "-vp" || arg == "-pv" {
+    if arg.contains('p') {
       is_practice_run = true;
     }
-    if arg == "-h" {
+    if arg.contains('h') {
       print_help_and_gtfo();
     }
     if arg == "-g" {
@@ -190,6 +190,7 @@ fn handle_args() -> (bool, bool, bool, String) {
     println!("\nArguments error: Don't mix -x and -p ya dingus!");
     print_help_and_gtfo();
   }
+  println!("{} {} {} {}",is_go, is_verbose, is_sort, glob);
   (is_go, is_verbose, is_sort, glob)
 }
 
