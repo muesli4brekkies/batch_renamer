@@ -26,6 +26,7 @@ for example
 * **-v**                - Verbose mode. Print actions to terminal
 * **-p**                - Practice run, no file manipulation. Combine with -v.
 * **-g "glob pattern"** - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
+* **-s**                - Optional. Sort by exif time and date, ascending. Useful otherwise the program shuffles things around.
 * **-h**                - Print help and exit.
 
 ## notes

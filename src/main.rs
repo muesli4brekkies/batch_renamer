@@ -10,7 +10,7 @@ struct FileDate<'a> {
   date: String,
 }
 
-fn main() -> Result<(),io::Error> {
+fn main() -> Result<(), io::Error> {
   let start_time = time::SystemTime::now();
   let (is_go, is_verbose, is_sort, glob) = handle_args();
   if !is_verbose {
@@ -69,14 +69,15 @@ fn sort_by_date(valid_files: Vec<String>) -> Vec<String> {
     .iter()
     .map(|file| FileDate {
       filename: file,
-      date: exif::Field::display_value(
-        exif::Reader::new()
-          .read_from_container(&mut io::BufReader::new(fs::File::open(file).unwrap()))
-          .unwrap()
-          .get_field(exif::Tag::DateTime, exif::In::PRIMARY)
-          .unwrap(),
-      )
-      .to_string(),
+      date: match exif::Reader::new()
+        .read_from_container(&mut io::BufReader::new(fs::File::open(file).unwrap()))
+      {
+        Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
+          Some(date) => exif::Field::display_value(date).to_string(),
+          None => String::from('0'),
+        },
+        Err(_) => String::from('0'),
+      },
     })
     .collect();
   exif_list.sort_by_key(|d| d.date.clone());
@@ -157,28 +158,32 @@ fn handle_args() -> (bool, bool, bool, String) {
     print_help_and_gtfo()
   };
   for (i, arg) in args.iter().enumerate() {
-    if i == 0 {continue;};
-    if arg.contains('s') {
-      is_sort = true;
-    }
-    if arg.contains('v') {
-      is_verbose = true;
-    }
-    if arg.contains('x') {
-      is_go = true;
-    }
-    if arg.contains('p') {
-      is_practice_run = true;
-    }
-    if arg.contains('h') {
-      print_help_and_gtfo();
-    }
-    if arg == "-g" {
-      if args.len() - 1 >= i + 1 {
-        glob = args[i + 1].to_string();
-      } else {
-        println!("\nArguments error: Please supply a string to glob for.");
+    if i == 0 {
+      continue;
+    };
+    if arg.contains('-') {
+      if arg.contains('s') {
+        is_sort = true;
+      }
+      if arg.contains('v') {
+        is_verbose = true;
+      }
+      if arg.contains('x') {
+        is_go = true;
+      }
+      if arg.contains('p') {
+        is_practice_run = true;
+      }
+      if arg.contains('h') {
         print_help_and_gtfo();
+      }
+      if arg == "-g" {
+        if args.len() - 1 >= i + 1 {
+          glob = args[i + 1].to_string();
+        } else {
+          println!("\nArguments error: Please supply a string to glob for.");
+          print_help_and_gtfo();
+        }
       }
     }
   }
@@ -190,7 +195,7 @@ fn handle_args() -> (bool, bool, bool, String) {
     println!("\nArguments error: Don't mix -x and -p ya dingus!");
     print_help_and_gtfo();
   }
-  println!("{} {} {} {}",is_go, is_verbose, is_sort, glob);
+  println!("{} {} {} {}", is_go, is_verbose, is_sort, glob);
   (is_go, is_verbose, is_sort, glob)
 }
 
