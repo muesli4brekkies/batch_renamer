@@ -138,25 +138,15 @@ fn get_files(dir: &String, glob_str: &String) -> Vec<FileDate> {
     .collect()
 }
 
-fn handle_args() -> (bool, bool, bool, String) {
-  let DEFAULT_GLOB: &String = &"*.jpg".to_string();
-  let args: &[(usize, String)] = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
-  let is_execute = args
+fn args_contain(c: &str, args: &[(usize, String)]) -> bool {
+  args
     .iter()
-    .any(|arg| arg.1.starts_with('-') && arg.1.contains("x"));
-  let is_verbose = args
-    .iter()
-    .any(|arg| arg.1.starts_with('-') && arg.1.contains("v"));
-  let is_practice = args
-    .iter()
-    .any(|arg| arg.1.starts_with('-') && arg.1.contains("p"));
-  let is_sort = args
-    .iter()
-    .any(|arg| arg.1.starts_with('-') && arg.1.contains("s"));
-  if args.len() == 0 {
-    print_help_and_gtfo()
-  };
-  let glob: String = args
+    .any(|arg| arg.1.starts_with('-') && arg.1.contains(c))
+}
+
+fn get_glob(args: &[(usize, String)]) -> String {
+  let default_glob: &String = &"*.jpg".to_string();
+  args
     .iter()
     .filter_map(|f| {
       if f.1 == "-g" {
@@ -170,8 +160,20 @@ fn handle_args() -> (bool, bool, bool, String) {
     })
     .collect::<Vec<String>>()
     .get(0)
-    .unwrap_or(DEFAULT_GLOB)
-    .to_string();
+    .unwrap_or(default_glob)
+    .to_string()
+}
+
+fn handle_args() -> (bool, bool, bool, String) {
+  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
+  let is_execute = args_contain("x", &args);
+  let is_verbose = args_contain("v", &args);
+  let is_practice = args_contain("p", &args);
+  let is_sort = args_contain("s", &args);
+  if args.len() == 0 {
+    print_help_and_gtfo()
+  };
+  let glob: String = get_glob(args);
 
   if !is_execute && !is_practice {
     println!("\nArguments error: Specify -p for practice run or -x to execute renaming.");
