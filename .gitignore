@@ -1,2 +1,3 @@
 /target
-/testimages
+cargo.toml
+cargo.lock

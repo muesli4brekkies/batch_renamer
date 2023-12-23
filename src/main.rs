@@ -155,10 +155,10 @@ fn handle_args() -> (bool, bool, bool, String) {
       if arg.contains('h') {
         print_help_and_gtfo();
       }
-        is_sort = arg.contains('s');
-        is_execute = arg.contains('x');
-        is_verbose = arg.contains('v');
-        is_practice = arg.contains('p');
+        if arg.contains('s') {is_sort = true};
+        if arg.contains('x') {is_execute = true};
+        if arg.contains('v') {is_verbose = true};
+        if arg.contains('p') {is_practice = true};
       if arg == "-g" {
         if args.len() - 1 >= i + 1 {
           glob = args[i + 1].to_string();
@@ -169,6 +169,7 @@ fn handle_args() -> (bool, bool, bool, String) {
       }
     }
   }
+  println!("{} {} {} {}", is_execute, is_verbose, is_sort, glob);
   if !is_execute && !is_practice {
       println!("\nArguments error: Specify -p for practice run or -x to execute renaming.");
     print_help_and_gtfo();
@@ -177,7 +178,6 @@ fn handle_args() -> (bool, bool, bool, String) {
     println!("\nArguments error: Don't mix -x and -p ya dingus!");
     print_help_and_gtfo();
   }
-  println!("{} {} {} {}", is_execute, is_verbose, is_sort, glob);
   (is_execute, is_verbose, is_sort, glob)
 }
 
