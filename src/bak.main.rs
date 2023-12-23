@@ -1,9 +1,10 @@
+use exif;
 use glob::glob;
+use std::thread::ScopedJoinHandle;
 use std::{env, fs, io, sync, thread, time, vec};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
 
-#[derive(Debug)]
 struct FileDate {
   name: String,
   date: String,
@@ -11,48 +12,42 @@ struct FileDate {
 
 fn main() -> Result<(), io::Error> {
   let start_time = time::SystemTime::now();
-  let (is_execute, is_verbose, is_sort, glob) = handle_args();
+  let (is_go, is_verbose, is_sort, glob) = handle_args();
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
   }
-  let num_files = sync::atomic::AtomicUsize::new(0);
+  let mut num_files = sync::atomic::AtomicUsize::new(0);
   let num_threads: usize = thread::available_parallelism()?.get();
   let unique_dirs: Vec<String> = get_directories();
-  let jobs_list = unique_dirs
-    .iter()
-    .flat_map(|dir| {
-      get_files(dir, &glob, is_sort)
-        .iter()
-        .enumerate()
-        .map(|(i, file)| {
-          let dir_vec: Vec<&str> = dir.split('/').collect();
-          (
-            file.name.to_string(),
-            format!("{}/{}{}", &dir, i, TEMP_NAME),
-            format!(
-              "{}/{}{}.{}",
-              dir,
-              dir_vec[(dir_vec.len() - 2)..].join(""),
-              i,
-              file.name.split('.').last().unwrap_or("")
-            ),
-          )
-        })
-        .collect::<Vec<_>>()
-    })
-    .collect::<Vec<_>>();
-
-  let tot_files = *&jobs_list.len() as f64;
-
-  thread::scope(|s| {
-    jobs_list.chunks(num_threads).for_each(|chunk| {
-      chunk
-        .iter()
-        .map(|job| s.spawn(|| rename_file(job.clone(), is_execute, is_verbose)))
-        .for_each(|h| h.join().unwrap());
-    })
-  });
-  println!("{unique_dirs:?}");
+  for (i, dir) in unique_dirs.iter().enumerate() {
+    thread::scope(|s| {
+      let mut children: Vec<ScopedJoinHandle<Result<(), io::Error>>> = vec![];
+      if children.len() >= num_threads {
+        for child in children {
+          child.join().unwrap()?;
+        }
+        children = vec![];
+      }
+      children.push(s.spawn(|| -> Result<(), io::Error> {
+        let mut valid_files: Vec<FileDate> = get_files(&dir, &glob);
+        {
+          *num_files.get_mut() += valid_files.len();
+        }
+        if is_sort {
+          valid_files.sort_by_key(|d| d.date.clone());
+        }
+        rename_files(valid_files, &dir, is_go, is_verbose)?;
+        Ok(())
+      }));
+      if i == unique_dirs.len() - 1 {
+        for child in children {
+          child.join().unwrap()?;
+        }
+      }
+      Ok::<(), io::Error>(())
+    })?;
+  }
+  let tot_files = num_files.into_inner() as f64;
   let time_elapsed = time::SystemTime::now()
     .duration_since(start_time)
     .unwrap()
@@ -63,7 +58,7 @@ fn main() -> Result<(), io::Error> {
     time_elapsed,
     tot_files / time_elapsed
   );
-  if !is_execute {
+  if !is_go {
     println!("This was a practice run. -x to execute renaming. Be careful.");
   } else {
     println!("Renaming executed.");
@@ -75,15 +70,43 @@ fn main() -> Result<(), io::Error> {
   Ok(())
 }
 
-fn rename_file(job: (String, String, String), is_execute: bool, is_verbose: bool) {
-  if is_verbose {
-    println!("{} >t> {}", job.0, job.1);
-    println!("{} >t> {}\n", job.1, job.2);
+fn rename_files(
+  valid_files: Vec<FileDate>,
+  dir: &String,
+  is_execute: bool,
+  is_verbose: bool,
+) -> Result<(), io::Error> {
+  let mut file_ext_list: Vec<&str> = vec![];
+  for (i, file) in valid_files.iter().enumerate() {
+    match file.name.split('.').last() {
+      Some(file_ext) => file_ext_list.push(file_ext),
+      None => file_ext_list.push(""),
+    }
+    if is_verbose {
+      println!("./{} >t> {}/{}{}", file.name, dir, i, TEMP_NAME);
+    }
+    if is_execute {
+      fs::rename(&file.name, format!("{}/{}{}", dir, i, TEMP_NAME))?;
+    }
   }
-  if is_execute {
-    fs::rename(&job.0, &job.1).unwrap();
-    fs::rename(&job.1, &job.2).unwrap();
+
+  for i in 0..valid_files.len() {
+    let dir_vec: Vec<&str> = dir.split('/').collect();
+    let new_name = dir_vec[(dir_vec.len() - 2)..].join("");
+    if is_verbose {
+      println!(
+        "{}/{}{} >r> {}/{}{}.{}",
+        dir, i, TEMP_NAME, dir, new_name, i, file_ext_list[i],
+      );
+    }
+    if is_execute {
+      fs::rename(
+        format!("{}/{}{}", dir, i, TEMP_NAME),
+        format!("{}/{}{}.{}", dir, new_name, i, file_ext_list[i]),
+      )?;
+    }
   }
+  Ok(())
 }
 
 fn get_directories() -> Vec<String> {
@@ -96,8 +119,8 @@ fn get_directories() -> Vec<String> {
     .collect()
 }
 
-fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<FileDate> {
-  let mut files = glob(&format!("{}/{}", dir, glob_str))
+fn get_files(dir: &String, glob_str: &String) -> Vec<FileDate> {
+  glob(&format!("{}/{}", dir, glob_str))
     .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
     .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap())
     .map(|file| FileDate {
@@ -112,11 +135,7 @@ fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<FileDate> {
       },
       name: file,
     })
-    .collect::<Vec<FileDate>>();
-  if is_sort {
-    files.sort_by_key(|f| f.date.clone())
-  }
-  files
+    .collect()
 }
 
 fn args_contain(c: &str, args: &[(usize, String)]) -> bool {
@@ -144,12 +163,12 @@ fn get_glob(args: &[(usize, String)]) -> String {
 fn handle_args() -> (bool, bool, bool, String) {
   let default = String::from("*.jpg");
   let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
-  let is_execute = args_contain("x", args);
-  let is_verbose = args_contain("v", args);
-  let is_practice = args_contain("p", args);
-  let is_glob = args_contain("g", args);
-  let is_sort = args_contain("s", args);
-  if args.is_empty() {
+  let is_execute = args_contain("x", &args);
+  let is_verbose = args_contain("v", &args);
+  let is_practice = args_contain("p", &args);
+  let is_glob = args_contain("g", &args);
+  let is_sort = args_contain("s", &args);
+  if args.len() == 0 {
     print_help_and_gtfo()
   };
   let glob = if is_glob { get_glob(args) } else { default };
