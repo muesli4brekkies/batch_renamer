@@ -48,11 +48,16 @@ fn main() -> Result<(), io::Error> {
     jobs_list.chunks(num_threads).for_each(|chunk| {
       chunk
         .iter()
-        .map(|job| s.spawn(|| rename_file(job.clone(), is_execute, is_verbose)))
+        .map(|job| s.spawn(|| rename_files(&job.0, &job.1, is_execute, is_verbose)))
+        .for_each(|h| h.join().unwrap());
+    });
+    jobs_list.chunks(num_threads).for_each(|chunk| {
+      chunk
+        .iter()
+        .map(|job| s.spawn(|| rename_files(&job.1, &job.2, is_execute, is_verbose)))
         .for_each(|h| h.join().unwrap());
     })
   });
-  println!("{unique_dirs:?}");
   let time_elapsed = time::SystemTime::now()
     .duration_since(start_time)
     .unwrap()
@@ -75,14 +80,12 @@ fn main() -> Result<(), io::Error> {
   Ok(())
 }
 
-fn rename_file(job: (String, String, String), is_execute: bool, is_verbose: bool) {
+fn rename_files(from: &String, to: &String, is_execute: bool, is_verbose: bool) {
   if is_verbose {
-    println!("{} >t> {}", job.0, job.1);
-    println!("{} >t> {}\n", job.1, job.2);
+    println!("{} >> {}", from, to);
   }
   if is_execute {
-    fs::rename(&job.0, &job.1).unwrap();
-    fs::rename(&job.1, &job.2).unwrap();
+    fs::rename(from, to).unwrap();
   }
 }
 
