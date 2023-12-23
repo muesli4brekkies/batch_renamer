@@ -63,11 +63,12 @@ fn main() -> Result<(), io::Error> {
   } else {
     println!("Renaming executed.");
   };
-  if is_sort {println!("Sorted by EXIF date.")};
+  if is_sort {
+    println!("Sorted by EXIF date.")
+  };
   println!("glob = \"{}\"", &glob);
   Ok(())
 }
-
 
 fn rename_files(
   valid_files: Vec<FileDate>,
@@ -119,66 +120,68 @@ fn get_directories() -> Vec<String> {
 }
 
 fn get_files(dir: &String, glob_str: &String) -> Vec<FileDate> {
-    glob(&format!("{}/{}", dir, glob_str)).expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
-      .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap())
-      .map(|file| FileDate {
-        date: match exif::Reader::new()
-          .read_from_container(&mut io::BufReader::new(fs::File::open(&file).unwrap()))
-        {
-          Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
-            Some(date) => exif::Field::display_value(date).to_string(),
-            None => String::from('0'),
-          },
-          Err(_) => String::from('0'),
+  glob(&format!("{}/{}", dir, glob_str))
+    .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
+    .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap())
+    .map(|file| FileDate {
+      date: match exif::Reader::new()
+        .read_from_container(&mut io::BufReader::new(fs::File::open(&file).unwrap()))
+      {
+        Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
+          Some(date) => exif::Field::display_value(date).to_string(),
+          None => String::from('0'),
         },
-        name: file,
-      })
-      .collect()
+        Err(_) => String::from('0'),
+      },
+      name: file,
+    })
+    .collect()
 }
 
 fn handle_args() -> (bool, bool, bool, String) {
-  let args: Vec<String> = env::args().collect();
-  let mut is_execute = false;
-  let mut is_verbose = false;
-  let mut is_practice = false;
-  let mut is_sort = false;
-  let mut glob = String::from("*.jpg");
-
-  if args.len() == 1 {
+  let DEFAULT_GLOB: &String = &"*.jpg".to_string();
+  let args: &[(usize, String)] = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
+  let is_execute = args
+    .iter()
+    .any(|arg| arg.1.starts_with('-') && arg.1.contains("x"));
+  let is_verbose = args
+    .iter()
+    .any(|arg| arg.1.starts_with('-') && arg.1.contains("v"));
+  let is_practice = args
+    .iter()
+    .any(|arg| arg.1.starts_with('-') && arg.1.contains("p"));
+  let is_sort = args
+    .iter()
+    .any(|arg| arg.1.starts_with('-') && arg.1.contains("s"));
+  if args.len() == 0 {
     print_help_and_gtfo()
   };
-  for (i, arg) in args.iter().enumerate() {
-    if i == 0 {
-      continue;
-    };
-    if arg.starts_with('-') {
-      if arg.contains('h') {
-        print_help_and_gtfo();
-      }
-        if arg.contains('s') {is_sort = true};
-        if arg.contains('x') {is_execute = true};
-        if arg.contains('v') {is_verbose = true};
-        if arg.contains('p') {is_practice = true};
-      if arg == "-g" {
-        if args.len() - 1 >= i + 1 {
-          glob = args[i + 1].to_string();
-        } else {
-          println!("\nArguments error: Please supply a string to glob for.");
-          print_help_and_gtfo();
+  let glob: String = args
+    .iter()
+    .filter_map(|f| {
+      if f.1 == "-g" {
+        match args.get(f.0) {
+          Some(r) => Some(r.1.to_string()),
+          None => None,
         }
+      } else {
+        None
       }
-    }
-  }
-  println!("{} {} {} {}", is_execute, is_verbose, is_sort, glob);
+    })
+    .collect::<Vec<String>>()
+    .get(0)
+    .unwrap_or(DEFAULT_GLOB)
+    .to_string();
+
   if !is_execute && !is_practice {
-      println!("\nArguments error: Specify -p for practice run or -x to execute renaming.");
+    println!("\nArguments error: Specify -p for practice run or -x to execute renaming.");
     print_help_and_gtfo();
   }
   if is_execute && is_practice {
     println!("\nArguments error: Don't mix -x and -p ya dingus!");
     print_help_and_gtfo();
   }
-  (is_execute, is_verbose, is_sort, glob)
+  (is_execute, is_verbose, is_sort, glob.to_string())
 }
 
 fn print_help_and_gtfo() {
