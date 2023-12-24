@@ -16,11 +16,9 @@ fn main() {
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
   }
-  let file_list = get_file_list(is_sort, &glob);
 
-  let tot_files = file_list.len() as f32;
-
-  let rename_files = |is_temp: bool| {
+  let rename_files = |is_temp: bool| -> f32 {
+    let file_list = get_file_list(is_sort, &glob);
     file_list.iter().for_each(|(old, temp, new)| {
       let from = if is_temp { old } else { temp };
       let to = if is_temp { temp } else { new };
@@ -29,11 +27,12 @@ fn main() {
         (_, true) => rename(from, to).unwrap(),
         _ => {}
       }
-    })
+    });
+    file_list.len() as f32
   };
 
   rename_files(true);
-  rename_files(false);
+  let tot_files = rename_files(false);
 
   let time_elapsed = SystemTime::now()
     .duration_since(start_time)
@@ -82,9 +81,9 @@ fn get_file_list(is_sort: bool, glob: &String) -> Vec<(String, String, String)> 
             ),
           )
         })
-        .collect::<Vec<_>>()
+        .collect_vec()
     })
-    .collect::<Vec<_>>()
+    .collect_vec()
 }
 
 fn get_directories() -> Vec<String> {
@@ -98,7 +97,7 @@ fn get_directories() -> Vec<String> {
         .then(|| s.into_path().to_string_lossy().to_string()),
       Err(_) => None,
     })
-    .collect::<Vec<_>>()
+    .collect_vec()
 }
 
 fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> std::vec::IntoIter<String> {
@@ -116,7 +115,7 @@ fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> std::vec::IntoIt
       .unwrap_or(String::from('0'))
     })
   } else {
-    files.sorted_by_key(|_| 0)
+    files.sorted()
   }
 }
 
@@ -133,24 +132,24 @@ fn handle_args() -> (bool, bool, bool, String) {
     })
     .unwrap_or(String::from("*.jpg"));
 
-  let (is_execute, is_verbose, is_practice, is_sort) = (
+  let (is_help, is_execute, is_verbose, is_practice, is_sort) = (
+    args_contain("h"),
     args_contain("x"),
     args_contain("v"),
     args_contain("p"),
     args_contain("s"),
   );
-  match (is_execute, is_practice) {
-    (true, true) => {
-      println!("\nArguments error: Don't mix -x and -p ya dingus!");
-      print_help_and_gtfo()
-    }
-    (false, false) => {
-      println!(
-        "\nArguments error: Specify -p for practice run (recommended) or -x to execute renaming."
-      );
-      print_help_and_gtfo()
-    }
-    _ => {}
+  if is_help {
+    print_help_and_gtfo()
+  };
+  if is_execute && is_practice {
+    println!("\nArguments error: Don't mix -x and -p ya dingus!");
+    print_help_and_gtfo()
+  } else if !is_execute && !is_practice {
+    println!(
+      "\nArguments error: Specify -p for practice run (recommended) or -x to execute renaming."
+    );
+    print_help_and_gtfo()
   }
   (is_execute, is_verbose, is_sort, glob)
 }
