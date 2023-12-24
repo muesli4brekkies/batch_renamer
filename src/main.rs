@@ -1,4 +1,5 @@
 use glob::glob;
+use itertools::Itertools;
 use std::{env, fs, io, thread, time};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
@@ -43,21 +44,21 @@ fn main() -> Result<(), io::Error> {
 
   let tot_files = jobs_list.len() as f32;
 
-  thread::scope(|s| {
-    let job_chunks = jobs_list.chunks(num_threads);
-    job_chunks.clone().for_each(|chunk| {
-      chunk
-        .iter()
-        .map(|job| s.spawn(|| rename_files(&job.0, &job.1, is_execute, is_verbose)))
-        .for_each(|h| h.join().unwrap());
-    });
-    job_chunks.for_each(|chunk| {
-      chunk
-        .iter()
-        .map(|job| s.spawn(|| rename_files(&job.1, &job.2, is_execute, is_verbose)))
-        .for_each(|h| h.join().unwrap());
+  let rename_files = |is_temp: bool| {
+    jobs_list.iter().for_each(|job| {
+      let from = if is_temp { &job.0 } else { &job.1 };
+      let to = if is_temp { &job.1 } else { &job.2 };
+      if is_verbose {
+        println!("{} >> {}", from, to);
+      }
+      if is_execute {
+        fs::rename(from, to).unwrap();
+      }
     })
-  });
+  };
+
+  rename_files(true);
+  rename_files(false);
   let time_elapsed = time::SystemTime::now()
     .duration_since(start_time)
     .unwrap()
@@ -80,15 +81,6 @@ fn main() -> Result<(), io::Error> {
   Ok(())
 }
 
-fn rename_files(from: &String, to: &String, is_execute: bool, is_verbose: bool) {
-  if is_verbose {
-    println!("{} >> {}", from, to);
-  }
-  if is_execute {
-    fs::rename(from, to).unwrap();
-  }
-}
-
 fn get_directories() -> Vec<String> {
   WalkDir::new(".")
     .min_depth(2)
@@ -100,57 +92,54 @@ fn get_directories() -> Vec<String> {
 }
 
 fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<FileDate> {
-  let mut files = glob(&format!("{}/{}", dir, glob_str))
+  let files = glob(&format!("{}/{}", dir, glob_str))
     .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
-    .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap())
-    .map(|file| FileDate {
-      date: match exif::Reader::new()
-        .read_from_container(&mut io::BufReader::new(fs::File::open(&file).unwrap()))
-      {
-        Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
-          Some(date) => exif::Field::display_value(date).to_string(),
-          None => String::from('0'),
+    .map(|path_buff| {
+      let file = path_buff.unwrap().into_os_string().into_string().unwrap();
+      FileDate {
+        date: match exif::Reader::new()
+          .read_from_container(&mut io::BufReader::new(fs::File::open(&file).unwrap()))
+        {
+          Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
+            Some(date) => exif::Field::display_value(date).to_string(),
+            None => String::from('0'),
+          },
+          Err(_) => String::from('0'),
         },
-        Err(_) => String::from('0'),
-      },
-      name: file,
-    })
-    .collect::<Vec<FileDate>>();
-  if is_sort {
-    files.sort_by_key(|f| f.date.clone())
-  }
-  files
-}
-
-fn args_contain(c: &str) -> bool {
-  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
-  if args.is_empty() {
-    print_help_and_gtfo()
-  };
-  args
-    .iter()
-    .any(|arg| arg.1.starts_with('-') && arg.1.contains(c))
-}
-
-fn get_glob_arg() -> String {
-  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
-  args
-    .iter()
-    .map(|f| {
-      if f.1 == "-g" {
-        match args.get(f.0) {
-          Some(r) => r.1.to_string(),
-          None => String::from(""),
-        }
-      } else {
-        String::from("")
+        name: file,
       }
-    })
-    .collect::<String>()
+    });
+  if is_sort {
+    files
+      .sorted_by_key(|f| f.date.clone())
+      .collect::<Vec<FileDate>>()
+  } else {
+    files.collect::<Vec<FileDate>>()
+  }
 }
 
 fn handle_args() -> (bool, bool, bool, String) {
-  let default = String::from("*.jpg");
+  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
+  let args_contain = |c: &str| -> bool {
+    args
+      .iter()
+      .any(|arg| arg.1.starts_with('-') && arg.1.contains(c))
+  };
+  let get_glob_arg = || -> String {
+    args
+      .iter()
+      .map(|f| {
+        if f.1 == "-g" {
+          match args.get(f.0) {
+            Some(r) => r.1.to_string(),
+            None => String::from(""),
+          }
+        } else {
+          String::from("")
+        }
+      })
+      .collect::<String>()
+  };
   let (is_execute, is_verbose, is_practice, is_glob, is_sort) = (
     args_contain("x"),
     args_contain("v"),
@@ -158,7 +147,11 @@ fn handle_args() -> (bool, bool, bool, String) {
     args_contain("g"),
     args_contain("s"),
   );
-  let glob = if is_glob { get_glob_arg() } else { default };
+  let glob = if is_glob {
+    get_glob_arg()
+  } else {
+    String::from("*.jpg")
+  };
 
   if !is_execute && !is_practice {
     println!(
