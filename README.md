@@ -18,16 +18,16 @@ etc.
 
 ## usage
 
-`./batch_renamer -[xvph] -g "glob pattern"`
+`./batch_renamer -[hpxvs] -g "glob pattern"`
 for example
 `./batch_renamer -xv -g "*.png"`
 
+* **-h**                - Print help and exit.
+* **-p**                - Practice run, no file manipulation. Combine with -v.
 * **-x**                - Execute renaming, use with caution.
 * **-v**                - Verbose mode. Print actions to terminal
-* **-p**                - Practice run, no file manipulation. Combine with -v.
+* **-s**                - Optional. Sort by exif timestamp, ascending. Useful otherwise the program shuffles things around.
 * **-g "glob pattern"** - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
-* **-s**                - Optional. Sort by exif time and date, ascending. Useful otherwise the program shuffles things around.
-* **-h**                - Print help and exit.
 
 ## notes
 
