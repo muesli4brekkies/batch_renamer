@@ -1,6 +1,7 @@
+use exif::{Field, In, Reader, Tag};
 use glob::glob;
 use itertools::Itertools;
-use std::{env, fs, io, thread, time};
+use std::{env, fs, io, time};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
 
@@ -16,7 +17,6 @@ fn main() -> Result<(), io::Error> {
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
   }
-  let num_threads: usize = thread::available_parallelism()?.get();
   let unique_dirs: Vec<String> = get_directories();
   let jobs_list = unique_dirs
     .iter()
@@ -59,6 +59,7 @@ fn main() -> Result<(), io::Error> {
 
   rename_files(true);
   rename_files(false);
+
   let time_elapsed = time::SystemTime::now()
     .duration_since(start_time)
     .unwrap()
@@ -97,11 +98,11 @@ fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<FileDate> {
     .map(|path_buff| {
       let file = path_buff.unwrap().into_os_string().into_string().unwrap();
       FileDate {
-        date: match exif::Reader::new()
+        date: match Reader::new()
           .read_from_container(&mut io::BufReader::new(fs::File::open(&file).unwrap()))
         {
-          Ok(exif) => match exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY) {
-            Some(date) => exif::Field::display_value(date).to_string(),
+          Ok(exif) => match exif.get_field(Tag::DateTime, In::PRIMARY) {
+            Some(date) => Field::display_value(date).to_string(),
             None => String::from('0'),
           },
           Err(_) => String::from('0'),
