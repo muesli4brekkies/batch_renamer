@@ -1,5 +1,5 @@
 use glob::glob;
-use std::{env, fs, io, sync, thread, time, vec};
+use std::{env, fs, io, thread, time};
 use walkdir::WalkDir;
 const TEMP_NAME: &'static str = ".brtmp";
 
@@ -15,7 +15,6 @@ fn main() -> Result<(), io::Error> {
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
   }
-  let num_files = sync::atomic::AtomicUsize::new(0);
   let num_threads: usize = thread::available_parallelism()?.get();
   let unique_dirs: Vec<String> = get_directories();
   let jobs_list = unique_dirs
@@ -42,16 +41,17 @@ fn main() -> Result<(), io::Error> {
     })
     .collect::<Vec<_>>();
 
-  let tot_files = *&jobs_list.len() as f64;
+  let tot_files = jobs_list.len() as f32;
 
   thread::scope(|s| {
-    jobs_list.chunks(num_threads).for_each(|chunk| {
+    let job_chunks = jobs_list.chunks(num_threads);
+    job_chunks.clone().for_each(|chunk| {
       chunk
         .iter()
         .map(|job| s.spawn(|| rename_files(&job.0, &job.1, is_execute, is_verbose)))
         .for_each(|h| h.join().unwrap());
     });
-    jobs_list.chunks(num_threads).for_each(|chunk| {
+    job_chunks.for_each(|chunk| {
       chunk
         .iter()
         .map(|job| s.spawn(|| rename_files(&job.1, &job.2, is_execute, is_verbose)))
@@ -61,7 +61,7 @@ fn main() -> Result<(), io::Error> {
   let time_elapsed = time::SystemTime::now()
     .duration_since(start_time)
     .unwrap()
-    .as_secs_f64();
+    .as_secs_f32();
   println!(
     "{} files in {} seconds. {:.0} files/sec",
     tot_files,
@@ -122,13 +122,18 @@ fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<FileDate> {
   files
 }
 
-fn args_contain(c: &str, args: &[(usize, String)]) -> bool {
+fn args_contain(c: &str) -> bool {
+  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
+  if args.is_empty() {
+    print_help_and_gtfo()
+  };
   args
     .iter()
     .any(|arg| arg.1.starts_with('-') && arg.1.contains(c))
 }
 
-fn get_glob(args: &[(usize, String)]) -> String {
+fn get_glob_arg() -> String {
+  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
   args
     .iter()
     .map(|f| {
@@ -146,16 +151,14 @@ fn get_glob(args: &[(usize, String)]) -> String {
 
 fn handle_args() -> (bool, bool, bool, String) {
   let default = String::from("*.jpg");
-  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
-  let is_execute = args_contain("x", args);
-  let is_verbose = args_contain("v", args);
-  let is_practice = args_contain("p", args);
-  let is_glob = args_contain("g", args);
-  let is_sort = args_contain("s", args);
-  if args.is_empty() {
-    print_help_and_gtfo()
-  };
-  let glob = if is_glob { get_glob(args) } else { default };
+  let (is_execute, is_verbose, is_practice, is_glob, is_sort) = (
+    args_contain("x"),
+    args_contain("v"),
+    args_contain("p"),
+    args_contain("g"),
+    args_contain("s"),
+  );
+  let glob = if is_glob { get_glob_arg() } else { default };
 
   if !is_execute && !is_practice {
     println!(
