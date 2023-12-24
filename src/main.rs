@@ -1,66 +1,42 @@
 use exif::{Field, In, Reader, Tag};
 use glob::glob;
 use itertools::Itertools;
-use std::{env, fs, io, time};
+use std::{
+  env,
+  fs::{rename, File},
+  io::BufReader,
+  time::SystemTime,
+};
 use walkdir::WalkDir;
-const TEMP_NAME: &'static str = ".brtmp";
+const TEMP_NAME: &str = ".brtmp";
 
-#[derive(Debug)]
-struct FileDate {
-  name: String,
-  date: String,
-}
-
-fn main() -> Result<(), io::Error> {
-  let start_time = time::SystemTime::now();
+fn main() {
+  let start_time = SystemTime::now();
   let (is_execute, is_verbose, is_sort, glob) = handle_args();
   if !is_verbose {
     println!("Terminal printing disabled, -v to enable.")
   }
-  let unique_dirs: Vec<String> = get_directories();
-  let jobs_list = unique_dirs
-    .iter()
-    .flat_map(|dir| {
-      get_files(dir, &glob, is_sort)
-        .iter()
-        .enumerate()
-        .map(|(i, file)| {
-          let dir_vec: Vec<&str> = dir.split('/').collect();
-          (
-            file.name.to_string(),
-            format!("{}/{}{}", &dir, i, TEMP_NAME),
-            format!(
-              "{}/{}{}.{}",
-              dir,
-              dir_vec[(dir_vec.len() - 2)..].join(""),
-              i,
-              file.name.split('.').last().unwrap_or("")
-            ),
-          )
-        })
-        .collect::<Vec<_>>()
-    })
-    .collect::<Vec<_>>();
+  let file_list = get_file_list(is_sort, &glob);
 
-  let tot_files = jobs_list.len() as f32;
+  let tot_files = file_list.len() as f32;
 
-  let rename_files = |is_temp: bool| {
-    jobs_list.iter().for_each(|job| {
-      let from = if is_temp { &job.0 } else { &job.1 };
-      let to = if is_temp { &job.1 } else { &job.2 };
+  let rename_files = |is_temp: bool, is_verbose: bool, is_execute: bool| {
+    file_list.iter().for_each(|(old, temp, new)| {
+      let from = if is_temp { old } else { temp };
+      let to = if is_temp { temp } else { new };
       if is_verbose {
-        println!("{} >> {}", from, to);
+        println!("{from} >> {to}");
       }
       if is_execute {
-        fs::rename(from, to).unwrap();
+        rename(from, to).unwrap();
       }
     })
   };
 
-  rename_files(true);
-  rename_files(false);
+  rename_files(true, is_verbose, is_execute);
+  rename_files(false, is_verbose, is_execute);
 
-  let time_elapsed = time::SystemTime::now()
+  let time_elapsed = SystemTime::now()
     .duration_since(start_time)
     .unwrap()
     .as_secs_f32();
@@ -78,108 +54,137 @@ fn main() -> Result<(), io::Error> {
   if is_sort {
     println!("Sorted by EXIF date.")
   };
-  println!("glob = \"{}\"", &glob);
-  Ok(())
+  println!("glob = \"{}\"", glob);
+}
+
+fn get_file_list(is_sort: bool, glob: &String) -> Vec<(String, String, String)> {
+  get_directories()
+    .iter()
+    .flat_map(|dir| {
+      get_files(dir, glob, is_sort)
+        .into_iter()
+        .enumerate()
+        .map(|(i, file)| {
+          (
+            file.clone(),
+            format!("{}/{}{}", &dir, i, TEMP_NAME),
+            format!(
+              "{}/{}{}.{}",
+              dir,
+              dir
+                .rsplit('/')
+                .enumerate()
+                .fold("".to_string(), |a, (i, w)| if i < 2 {
+                  [w, &a].join("")
+                } else {
+                  a
+                }),
+              i,
+              file.split('.').last().unwrap_or("")
+            ),
+          )
+        })
+        .collect::<Vec<_>>()
+    })
+    .collect::<Vec<_>>()
 }
 
 fn get_directories() -> Vec<String> {
   WalkDir::new(".")
     .min_depth(2)
     .into_iter()
-    .filter_map(Result::ok)
-    .filter(|e| e.file_type().is_dir())
-    .map(|e| e.into_path().to_string_lossy().to_string())
+    .filter_map(|string| match string.ok() {
+      Some(s) => {
+        if s.file_type().is_dir() {
+          Some(s.into_path().to_string_lossy().to_string())
+        } else {
+          None
+        }
+      }
+      None => None,
+    })
     .collect()
 }
 
-fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<FileDate> {
+fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> Vec<String> {
   let files = glob(&format!("{}/{}", dir, glob_str))
     .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
-    .map(|path_buff| {
-      let file = path_buff.unwrap().into_os_string().into_string().unwrap();
-      FileDate {
-        date: match Reader::new()
-          .read_from_container(&mut io::BufReader::new(fs::File::open(&file).unwrap()))
-        {
-          Ok(exif) => match exif.get_field(Tag::DateTime, In::PRIMARY) {
-            Some(date) => Field::display_value(date).to_string(),
-            None => String::from('0'),
-          },
-          Err(_) => String::from('0'),
-        },
-        name: file,
-      }
-    });
+    .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap());
   if is_sort {
     files
-      .sorted_by_key(|f| f.date.clone())
-      .collect::<Vec<FileDate>>()
+      .sorted_by_key(|f| {
+        match Reader::new().read_from_container(&mut BufReader::new(File::open(f).unwrap())) {
+          Ok(exif) => exif
+            .get_field(Tag::DateTime, In::PRIMARY)
+            .map(|date| Field::display_value(date).to_string()),
+          Err(_) => None,
+        }
+        .unwrap_or(String::from('0'))
+      })
+      .collect::<Vec<String>>()
   } else {
-    files.collect::<Vec<FileDate>>()
+    files.collect::<Vec<String>>()
   }
 }
 
 fn handle_args() -> (bool, bool, bool, String) {
-  let args = &env::args().enumerate().collect::<Vec<(usize, String)>>()[1..];
+  let args = &env::args().collect::<Vec<String>>();
   let args_contain = |c: &str| -> bool {
     args
       .iter()
-      .any(|arg| arg.1.starts_with('-') && arg.1.contains(c))
+      .any(|arg| arg.starts_with('-') && arg.contains(c))
   };
-  let get_glob_arg = || -> String {
-    args
-      .iter()
-      .map(|f| {
-        if f.1 == "-g" {
-          match args.get(f.0) {
-            Some(r) => r.1.to_string(),
-            None => String::from(""),
-          }
-        } else {
-          String::from("")
+  let glob = args
+    .iter()
+    .enumerate()
+    .fold(None, |a, (i, f)| {
+      if f == "-g" {
+        match args.get(i + 1) {
+          Some(r) => Some(r.to_string()),
+          None => a,
         }
-      })
-      .collect::<String>()
-  };
-  let (is_execute, is_verbose, is_practice, is_glob, is_sort) = (
+      } else {
+        a
+      }
+    })
+    .unwrap_or(String::from("*.jpg"));
+
+  let (is_execute, is_verbose, is_practice, is_sort) = (
     args_contain("x"),
     args_contain("v"),
     args_contain("p"),
-    args_contain("g"),
     args_contain("s"),
   );
-  let glob = if is_glob {
-    get_glob_arg()
-  } else {
-    String::from("*.jpg")
-  };
-
-  if !is_execute && !is_practice {
-    println!(
-      "\nArguments error: Specify -p for practice run (recommended) or -x to execute renaming."
-    );
-    print_help_and_gtfo();
+  match (is_execute, is_practice) {
+    (true, true) => {
+      println!("\nArguments error: Don't mix -x and -p ya dingus!");
+      print_help_and_gtfo()
+    }
+    (false, false) => {
+      println!(
+        "\nArguments error: Specify -p for practice run (recommended) or -x to execute renaming."
+      );
+      print_help_and_gtfo()
+    }
+    _ => {}
   }
-  if is_execute && is_practice {
-    println!("\nArguments error: Don't mix -x and -p ya dingus!");
-    print_help_and_gtfo();
-  }
-  (is_execute, is_verbose, is_sort, glob.to_string())
+  (is_execute, is_verbose, is_sort, glob)
 }
 
 fn print_help_and_gtfo() {
   println!(
     r#"
-usage - ./batch_renamer -[xpsvh] -g "glob-string"
+usage - ./batch_renamer -[hvpxs] -g "glob-string"
  e.g. - ./batch_renamer -xvs -g "*.png"
                   ----
 options 
-        -x               - Execute renaming. Use with caution.
+        -h               - Print this screen and exit.
         -v               - Verbose terminal printing.
         -p               - Practice run. Combine with -v to print what the script will do.
+        -x               - Execute renaming. Use with caution.
+        -s               - Optional Sort by EXIF timestamp ascending. Defaults to simple alphanumeric filename sort.
         -g "glob_string" - Optional string to glob files with. Defaults to "*.jpg".
-        -s               - Sort by EXIF time and date ascending.
-        -h               - Print this screen and exit."#
+        "#
   );
   std::process::exit(0)
 }
