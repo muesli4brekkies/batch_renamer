@@ -41,28 +41,6 @@ pub fn rename_files(
   }
 }
 
-fn print_info(bools: Bools, start_time: SystemTime, num_files: f32) {
-  let time_elapsed = SystemTime::now()
-    .duration_since(start_time)
-    .unwrap()
-    .as_secs_f32();
-  println!(
-    "{} files in {} seconds. {:.0} files/sec\n{}\n{}\nglob = \"{}\"",
-    num_files,
-    time_elapsed,
-    num_files / time_elapsed,
-    match bools.is_exec {
-      true => "Renaming executed.",
-      false => "This was a practice run. -x to execute renaming. Be careful.",
-    },
-    match bools.is_sort {
-      true => "Sorted by EXIF date.",
-      false => "NOT sorted",
-    },
-    get_glob()
-  )
-}
-
 pub fn get_file_list() -> Vec<(String, String, String)> {
   get_dirs()
     .iter()
@@ -87,6 +65,28 @@ pub fn get_file_list() -> Vec<(String, String, String)> {
         })
     })
     .collect_vec()
+}
+
+fn print_info(bools: Bools, start_time: SystemTime, num_files: f32) {
+  let time_elapsed = SystemTime::now()
+    .duration_since(start_time)
+    .unwrap()
+    .as_secs_f32();
+  println!(
+    "{} files in {} seconds. {:.0} files/sec\n{}\n{}\nglob = \"{}\"",
+    num_files,
+    time_elapsed,
+    num_files / time_elapsed,
+    match bools.is_exec {
+      true => "Renaming executed.",
+      false => "This was a practice run. -x to execute renaming. Be careful.",
+    },
+    match bools.is_sort {
+      true => "Sorted by EXIF date.",
+      false => "NOT sorted",
+    },
+    get_glob()
+  )
 }
 
 fn get_dirs() -> Vec<String> {
