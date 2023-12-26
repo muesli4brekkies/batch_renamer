@@ -120,8 +120,8 @@ fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> std::vec::IntoIt
 }
 
 fn get_args() -> (Bools, String) {
-  let args_contain = |c| -> bool { args().any(|arg| arg.starts_with('-') && arg.contains(c)) 
-  let glob = args().find_position(pred)
+  let args_contain = |c| -> bool { args().any(|arg| arg.starts_with('-') && arg.contains(c)) };
+  let glob = args()
     .enumerate()
     .fold(None, |a, (i, f)| match f == "-g" {
       true => match args().nth(i + 1) {
