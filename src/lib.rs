@@ -1,160 +1,183 @@
-use exif::{Field, In, Reader, Tag};
-use glob::glob as globfiles;
-use itertools::Itertools;
-use std::{
-  env::args,
-  fs::{rename, File},
-  io::BufReader,
-  time::SystemTime,
-};
-use walkdir::WalkDir;
+pub mod run {
+  use crate::{get, print, state};
+  use std::{fs::rename, time::SystemTime};
 
-struct Bools {
-  is_verb: bool,
-  is_exec: bool,
-  is_sort: bool,
-}
-pub fn run() {
-  rename_files(SystemTime::now(), get_file_list(), true);
-}
+  pub fn go() {
+    rename_files(SystemTime::now(), get::file_list(), true);
+  }
 
-fn rename_files(start_time: SystemTime, file_list: Vec<(String, String, String)>, to_tmp: bool) {
-  let bools = get_args();
-  file_list.iter().for_each(|(old, tmp, new)| {
-    let (from, to) = if to_tmp { (old, tmp) } else { (tmp, new) };
-    if bools.is_verb {
-      println!("{from} >> {to}")
-    };
-    if bools.is_exec {
-      rename(from, to).unwrap()
-    };
-  });
-  if to_tmp {
-    rename_files(start_time, file_list, false)
-  } else {
-    print_info(bools, start_time, file_list.len() as f32)
+  fn rename_files(start_time: SystemTime, file_list: Vec<(String, String, String)>, to_tmp: bool) {
+    let state = state::get_state();
+    file_list.iter().for_each(|(old, tmp, new)| {
+      let (from, to) = if to_tmp { (old, tmp) } else { (tmp, new) };
+      if state.is_verb {
+        println!("{from} >> {to}")
+      };
+      if state.is_exec {
+        rename(from, to).unwrap()
+      };
+    });
+    if to_tmp {
+      rename_files(start_time, file_list, false)
+    } else {
+      print::info(start_time, file_list.len() as f32)
+    }
   }
 }
 
-fn get_file_list() -> Vec<(String, String, String)> {
-  get_dirs()
-    .iter()
-    .flat_map(|dir| {
-      get_files(dir, get_args().is_sort)
-        .enumerate()
-        .map(move |(i, file)| {
-          (
-            file.clone(),
-            format!("{}/{}{}", dir, i, ".brtmp"),
-            format!(
-              "{}/{}{}.{}",
-              dir,
-              dir
-                .rsplit('/')
-                .take(2)
-                .fold(String::from(""), |a, w| [w, &a].join("")),
-              i,
-              file.split('.').last().unwrap_or("")
-            ),
-          )
-        })
-    })
-    .collect_vec()
+mod state {
+  use crate::print;
+  use std::env;
+
+  pub(crate) struct State {
+    pub(crate) is_verb: bool,
+    pub(crate) is_exec: bool,
+    pub(crate) is_sort: bool,
+  }
+
+  pub(crate) fn get_state() -> State {
+    check_errors();
+    State {
+      is_verb: args_contain("v"),
+      is_exec: args_contain("x"),
+      is_sort: args_contain("s"),
+    }
+  }
+
+  fn args_contain(c: &str) -> bool {
+    env::args().any(|arg| arg.starts_with('-') && arg.contains(c))
+  }
+
+  fn check_errors() {
+    match (args_contain("x"), args_contain("p"), args_contain("h")) {
+      (_, _, true) => print::help("\nHELP:\n\n"),
+      (true, true, _) => print::help("\nERROR: Don't mix -x and -p ya dingus!\n\n"),
+      (false, false, _) => print::help("\nERROR: Need -x or -p to run\n\n"),
+      _ => {}
+    }
+  }
 }
 
-fn print_info(bools: Bools, start_time: SystemTime, num_files: f32) {
-  let time_elapsed = SystemTime::now()
-    .duration_since(start_time)
-    .unwrap()
-    .as_secs_f32();
-  println!(
-    "{} files in {} seconds. {:.0} files/sec\n{}\n{}\nglob = \"{}\"",
-    num_files,
-    time_elapsed,
-    num_files / time_elapsed,
-    match bools.is_exec {
-      true => "Renaming executed.",
-      false => "This was a practice run. -x to execute renaming. Be careful.",
-    },
-    match bools.is_sort {
-      true => "Sorted by EXIF date.",
-      false => "NOT sorted",
-    },
-    get_glob()
-  )
-}
+mod get {
+  use crate::state::get_state;
+  use exif::{Field, In, Reader, Tag};
+  use glob::glob;
+  use itertools::Itertools;
+  use std::{env, fs::File, io::BufReader};
+  use walkdir::{DirEntry, WalkDir};
 
-fn get_dirs() -> Vec<String> {
-  WalkDir::new(".")
-    .min_depth(2)
-    .into_iter()
-    .filter_map(|string| match string {
-      Ok(s) => s
-        .file_type()
-        .is_dir()
-        .then(|| s.into_path().to_string_lossy().to_string()),
-      Err(_) => None,
-    })
-    .collect_vec()
-}
+  pub(crate) fn glob_or_dir(is_glob: bool) -> String {
+    env::args()
+      .enumerate()
+      .fold(None, |a, (i, arg)| {
+        match arg == if is_glob { "-g" } else { "-d" } {
+          true => match env::args().nth(i + 1) {
+            Some(r) => Some(r),
+            None => a,
+          },
+          false => a,
+        }
+      })
+      .unwrap_or(String::from(if is_glob { "*.jpg" } else { "." }))
+  }
 
-fn get_files(dir: &String, is_sort: bool) -> std::vec::IntoIter<String> {
-  let files = globfiles(&[dir, &get_glob()].iter().join("/"))
-    .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
-    .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap());
-  if is_sort {
-    files.sorted_by_key(|f| {
-      match Reader::new().read_from_container(&mut BufReader::new(File::open(f).unwrap())) {
-        Ok(exif) => exif
-          .get_field(Tag::DateTime, In::PRIMARY)
-          .map(|date| Field::display_value(date).to_string()),
-        Err(_) => None,
+  pub(crate) fn file_list() -> Vec<(String, String, String)> {
+    WalkDir::new(glob_or_dir(false))
+      .min_depth(2)
+      .into_iter()
+      .filter_map(Result::ok)
+      .flat_map(get_dir_jobs)
+      .collect_vec()
+  }
+
+  fn get_dir_jobs(dir_entry: DirEntry) -> Vec<(String, String, String)> {
+    fn jobs_tuple(i: usize, file: String, dir: String) -> (String, String, String) {
+      (
+        file.clone(),
+        format!("{}/{}{}", dir, i, ".brtmp"),
+        format!(
+          "{}/{}{}.{}",
+          dir,
+          dir
+            .rsplit('/')
+            .take(2)
+            .fold(String::from(""), |a, w| [w, &a].join("")),
+          i,
+          file.split('.').last().unwrap_or("")
+        ),
+      )
+    }
+
+    fn get_files(is_sort: bool, dir: &String) -> std::vec::IntoIter<String> {
+      fn exif_date(file: &String) -> String {
+        match Reader::new().read_from_container(&mut BufReader::new(File::open(file).unwrap())) {
+          Ok(exif) => exif
+            .get_field(Tag::DateTime, In::PRIMARY)
+            .map(|date| Field::display_value(date).to_string()),
+          Err(_) => None,
+        }
+        .unwrap_or(String::from('0'))
       }
-      .unwrap_or(String::from('0'))
-    })
-  } else {
-    files.sorted()
+
+      let files = glob(&[dir, &glob_or_dir(true)].iter().join("/"))
+        .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
+        .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap());
+      if is_sort {
+        files.sorted_by_key(exif_date)
+      } else {
+        files.sorted()
+      }
+    }
+
+    match dir_entry.file_type().is_dir() {
+      true => {
+        let dir = dir_entry
+          .into_path()
+          .as_os_str()
+          .to_string_lossy()
+          .to_string();
+        get_files(get_state().is_sort, &dir)
+          .enumerate()
+          .map(move |(i, file)| jobs_tuple(i, file, dir.clone()))
+          .collect_vec()
+      }
+      false => Vec::new(),
+    }
   }
 }
 
-fn get_glob() -> String {
-  args()
-    .enumerate()
-    .fold(None, |a, (i, arg)| match arg == "-g" {
-      true => match args().nth(i + 1) {
-        Some(r) => Some(r),
-        None => a,
+mod print {
+  use crate::{get::glob_or_dir, state::get_state};
+  use std::time::SystemTime;
+
+  pub(crate) fn info(start_time: SystemTime, num_files: f32) {
+    let (glob, dir, state) = (glob_or_dir(true), glob_or_dir(false), get_state());
+    let time_elapsed = SystemTime::now()
+      .duration_since(start_time)
+      .unwrap()
+      .as_secs_f32();
+    println!(
+      "{} files in {} seconds. {:.0} files/sec\n{}\n{}\nglob = \"{}\"\nroot dir = \"{}\"",
+      num_files,
+      time_elapsed,
+      num_files / time_elapsed,
+      match state.is_exec {
+        true => "Renaming executed.",
+        false => "This was a practice run. -x to execute renaming. Be careful.",
       },
-      false => a,
-    })
-    .unwrap_or(String::from("*.jpg"))
-}
-
-fn get_args() -> Bools {
-  let args_contain = |c| -> bool { args().any(|arg| arg.starts_with('-') && arg.contains(c)) };
-  let bools: Bools = Bools {
-    is_verb: args_contain("v"),
-    is_exec: args_contain("x"),
-    is_sort: args_contain("s"),
-  };
-  let is_practice = args_contain("p");
-  if args_contain("h") {
-    print_help("")
-  };
-  match (bools.is_exec, is_practice) {
-    (true, true) => print_help("\nArguments ERROR: Don't mix -x and -p ya dingus!\n\n"),
-    (false, false) => print_help(
-      "\nArguments ERROR: Specify -p for practice run (recommended) or -x to execute renaming.\n\n",
-    ),
-    _ => {}
+      match state.is_sort {
+        true => "Sorted by EXIF date.",
+        false => "NOT sorted",
+      },
+      glob,
+      dir
+    )
   }
-  bools
-}
 
-fn print_help(err: &str) {
-  println!(
-    r#"{err}usage - ./batch_renamer -[hvpxs] -g "glob-string"
- e.g. - ./batch_renamer -xvs -g "*.png"
+  pub(crate) fn help(err: &str) {
+    println!(
+      r#"{err}usage - ./batch_renamer -[hvpxs] -g "glob-string" -d <path>
+ e.g. - ./batch_renamer -xvs -g "*.png" -d ../
                   ----
 options 
         -h               - Print this screen and exit.
@@ -162,8 +185,10 @@ options
         -p               - Practice run. Combine with -v to print what the script will do.
         -x               - Execute renaming. Use with caution.
         -s               - Optional Sort by EXIF timestamp ascending. Defaults to simple alphanumeric filename sort.
-        -g "glob_string" - Optional string to glob files with. Defaults to "*.jpg".
+        -g "glob_string" - Optional string to glob files with.        Defaults to "*.jpg".
+        -d <path>        - Optional path to run search from.          Defaults to directory the binary is run from.
         "#
-  );
-  std::process::exit(0)
+    );
+    std::process::exit(0)
+  }
 }

@@ -1,3 +1,4 @@
+use batch_renamer::run::go;
 fn main() {
-  batch_renamer::run();
+  go()
 }
