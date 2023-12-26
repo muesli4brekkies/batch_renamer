@@ -4,8 +4,7 @@ use itertools::Itertools;
 use std::{
   env::args,
   fs::{rename, File},
-  io::{BufReader, IsTerminal},
-  str::ParseBoolError,
+  io::BufReader,
   time::SystemTime,
 };
 use walkdir::WalkDir;
@@ -41,7 +40,7 @@ fn main() {
       false => "",
     },
     glob
-  );
+  )
 }
 
 fn rename_files(
