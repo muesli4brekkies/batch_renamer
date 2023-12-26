@@ -4,7 +4,8 @@ use itertools::Itertools;
 use std::{
   env::args,
   fs::{rename, File},
-  io::BufReader,
+  io::{BufReader, IsTerminal},
+  str::ParseBoolError,
   time::SystemTime,
 };
 use walkdir::WalkDir;
@@ -17,22 +18,10 @@ fn main() {
     println!("Terminal printing disabled, -v to enable.")
   }
 
-  let rename_files = |is_temp: bool| -> f32 {
-    let file_list = get_file_list(is_sort, &glob);
-    file_list.iter().for_each(|(old, temp, new)| {
-      let from = if is_temp { old } else { temp };
-      let to = if is_temp { temp } else { new };
-      match (is_verbose, is_execute) {
-        (true, _) => println!("{from} >> {to}"),
-        (_, true) => rename(from, to).unwrap(),
-        _ => {}
-      }
-    });
-    file_list.len() as f32
-  };
-
-  rename_files(true);
-  let tot_files = rename_files(false);
+  let file_list = get_file_list(is_sort, &glob);
+  let tot_files = file_list.len() as f32;
+  rename_files(file_list.clone(), is_verbose, is_execute, true);
+  rename_files(file_list, is_verbose, is_execute, false);
 
   let time_elapsed = SystemTime::now()
     .duration_since(start_time)
@@ -53,6 +42,24 @@ fn main() {
     },
     glob
   );
+}
+
+fn rename_files(
+  file_list: Vec<(String, String, String)>,
+  is_verbose: bool,
+  is_execute: bool,
+  to_temp: bool,
+) {
+  file_list.iter().for_each(|(old, temp, new)| {
+    let from = if to_temp { old } else { temp };
+    let to = if to_temp { temp } else { new };
+    if is_verbose {
+      println!("{from} >> {to}")
+    };
+    if is_execute {
+      rename(from, to).expect("fail :(")
+    };
+  });
 }
 
 fn get_file_list(is_sort: bool, glob: &String) -> Vec<(String, String, String)> {
