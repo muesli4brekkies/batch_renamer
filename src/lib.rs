@@ -15,11 +15,7 @@ struct Bools {
   is_sort: bool,
 }
 pub fn run() {
-  rename_files(get_start_time(), get_file_list(), true);
-}
-
-fn get_start_time() -> SystemTime {
-  SystemTime::now()
+  rename_files(SystemTime::now(), get_file_list(), true);
 }
 
 fn rename_files(start_time: SystemTime, file_list: Vec<(String, String, String)>, to_tmp: bool) {
