@@ -14,16 +14,15 @@ struct Bools {
   is_exec: bool,
   is_sort: bool,
 }
+pub fn run() {
+  rename_files(get_start_time(), get_file_list(), true);
+}
 
-pub fn get_start_time() -> SystemTime {
+fn get_start_time() -> SystemTime {
   SystemTime::now()
 }
 
-pub fn rename_files(
-  start_time: SystemTime,
-  file_list: Vec<(String, String, String)>,
-  to_tmp: bool,
-) {
+fn rename_files(start_time: SystemTime, file_list: Vec<(String, String, String)>, to_tmp: bool) {
   let bools = get_args();
   file_list.iter().for_each(|(old, tmp, new)| {
     let (from, to) = if to_tmp { (old, tmp) } else { (tmp, new) };
@@ -41,7 +40,7 @@ pub fn rename_files(
   }
 }
 
-pub fn get_file_list() -> Vec<(String, String, String)> {
+fn get_file_list() -> Vec<(String, String, String)> {
   get_dirs()
     .iter()
     .flat_map(|dir| {
