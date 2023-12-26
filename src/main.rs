@@ -1,5 +1,5 @@
 use exif::{Field, In, Reader, Tag};
-use glob::glob;
+use glob::glob as globfiles;
 use itertools::Itertools;
 use std::{
   env::args,
@@ -8,20 +8,36 @@ use std::{
   time::SystemTime,
 };
 use walkdir::WalkDir;
-const TEMP_NAME: &str = ".brtmp";
+
+struct Bools {
+  is_verb: bool,
+  is_exec: bool,
+  is_sort: bool,
+}
 
 fn main() {
-  let start_time = SystemTime::now();
-  let (is_execute, is_verbose, is_sort, glob) = handle_args();
-  if !is_verbose {
-    println!("Terminal printing disabled, -v to enable.")
+  rename_files(SystemTime::now(), get_file_list(), true);
+}
+
+fn rename_files(start_time: SystemTime, file_list: Vec<(String, String, String)>, to_tmp: bool) {
+  let (bools, glob) = get_args();
+  file_list.iter().for_each(|(old, tmp, new)| {
+    let (from, to) = if to_tmp { (old, tmp) } else { (tmp, new) };
+    if bools.is_verb {
+      println!("{from} >> {to}")
+    };
+    if bools.is_exec {
+      rename(from, to).unwrap()
+    };
+  });
+  if to_tmp {
+    rename_files(start_time, file_list, false)
+  } else {
+    print_info(bools, glob, start_time, file_list.len() as f32)
   }
+}
 
-  let file_list = get_file_list(is_sort, &glob);
-  let tot_files = file_list.len() as f32;
-  rename_files(file_list.clone(), is_verbose, is_execute, true);
-  rename_files(file_list, is_verbose, is_execute, false);
-
+fn print_info(bools: Bools, glob: String, start_time: SystemTime, tot_files: f32) {
   let time_elapsed = SystemTime::now()
     .duration_since(start_time)
     .unwrap()
@@ -31,11 +47,11 @@ fn main() {
     tot_files,
     time_elapsed,
     tot_files / time_elapsed,
-    match is_execute {
+    match bools.is_exec {
       true => "Renaming executed.",
       false => "This was a practice run. -x to execute renaming. Be careful.",
     },
-    match is_sort {
+    match bools.is_sort {
       true => "\nSorted by EXIF date.",
       false => "",
     },
@@ -43,56 +59,34 @@ fn main() {
   )
 }
 
-fn rename_files(
-  file_list: Vec<(String, String, String)>,
-  is_verbose: bool,
-  is_execute: bool,
-  to_temp: bool,
-) {
-  file_list.iter().for_each(|(old, temp, new)| {
-    let from = if to_temp { old } else { temp };
-    let to = if to_temp { temp } else { new };
-    if is_verbose {
-      println!("{from} >> {to}")
-    };
-    if is_execute {
-      rename(from, to).expect("fail :(")
-    };
-  });
-}
-
-fn get_file_list(is_sort: bool, glob: &String) -> Vec<(String, String, String)> {
-  get_directories()
+fn get_file_list() -> Vec<(String, String, String)> {
+  let (bools, glob) = get_args();
+  get_dirs()
     .iter()
     .flat_map(|dir| {
-      get_files(dir, glob, is_sort)
+      get_files(dir, &glob, bools.is_sort)
         .enumerate()
-        .map(|(i, file)| {
+        .map(move |(i, file)| {
           (
             file.clone(),
-            format!("{}/{}{}", &dir, i, TEMP_NAME),
+            format!("{}/{}{}", dir, i, ".brtmp"),
             format!(
               "{}/{}{}.{}",
               dir,
               dir
                 .rsplit('/')
-                .enumerate()
-                .fold("".to_string(), |a, (i, w)| if i < 2 {
-                  [w, &a].join("")
-                } else {
-                  a
-                }),
+                .take(2)
+                .fold(String::from(""), |a, w| [w, &a].join("")),
               i,
               file.split('.').last().unwrap_or("")
             ),
           )
         })
-        .collect_vec()
     })
     .collect_vec()
 }
 
-fn get_directories() -> Vec<String> {
+fn get_dirs() -> Vec<String> {
   WalkDir::new(".")
     .min_depth(2)
     .into_iter()
@@ -107,7 +101,7 @@ fn get_directories() -> Vec<String> {
 }
 
 fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> std::vec::IntoIter<String> {
-  let files = glob(&[dir, glob_str].iter().join("/"))
+  let files = globfiles(&[dir, glob_str].iter().join("/"))
     .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
     .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap());
   if is_sort {
@@ -125,44 +119,41 @@ fn get_files(dir: &String, glob_str: &String, is_sort: bool) -> std::vec::IntoIt
   }
 }
 
-fn handle_args() -> (bool, bool, bool, String) {
-  let args_contain = |c| -> bool { args().any(|arg| arg.starts_with('-') && arg.contains(c)) };
-  let glob = args()
+fn get_args() -> (Bools, String) {
+  let args_contain = |c| -> bool { args().any(|arg| arg.starts_with('-') && arg.contains(c)) 
+  let glob = args().find_position(pred)
     .enumerate()
     .fold(None, |a, (i, f)| match f == "-g" {
       true => match args().nth(i + 1) {
-        Some(r) => Some(r.to_string()),
+        Some(r) => Some(r),
         None => a,
       },
       false => a,
     })
     .unwrap_or(String::from("*.jpg"));
 
-  let (is_help, is_execute, is_verbose, is_practice, is_sort) = (
-    args_contain("h"),
-    args_contain("x"),
-    args_contain("v"),
-    args_contain("p"),
-    args_contain("s"),
-  );
-  if is_help {
-    print_help_and_gtfo()
+  let bools: Bools = Bools {
+    is_verb: args_contain("v"),
+    is_exec: args_contain("x"),
+    is_sort: args_contain("s"),
   };
-  if is_execute && is_practice {
-    println!("\nArguments error: Don't mix -x and -p ya dingus!");
-    print_help_and_gtfo()
-  } else if !is_execute && !is_practice {
-    println!(
-      "\nArguments error: Specify -p for practice run (recommended) or -x to execute renaming."
-    );
-    print_help_and_gtfo()
+  let is_practice = args_contain("p");
+  if args_contain("h") {
+    print_help("")
+  };
+  match (bools.is_exec, is_practice) {
+    (true, true) => print_help("Arguments ERROR: Don't mix -x and -p ya dingus!\n"),
+    (false, false) => print_help(
+      "Arguments ERROR: Specify -p for practice run (recommended) or -x to execute renaming.\n",
+    ),
+    _ => {}
   }
-  (is_execute, is_verbose, is_sort, glob)
+  (bools, glob)
 }
 
-fn print_help_and_gtfo() {
+fn print_help(err: &str) {
   println!(
-    r#"
+    r#"{err}
 usage - ./batch_renamer -[hvpxs] -g "glob-string"
  e.g. - ./batch_renamer -xvs -g "*.png"
                   ----
