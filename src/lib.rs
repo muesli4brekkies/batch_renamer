@@ -10,11 +10,10 @@ mod state {
   pub(crate) fn go(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
     check_args();
     let state = get_state();
-    file_list.iter().for_each(|names: &Names| {
-      let (from, to) = if to_tmp {
-        (&names.old, &names.tmp)
-      } else {
-        (&names.tmp, &names.new)
+    file_list.iter().for_each(|n| {
+      let (from, to) = match to_tmp {
+        true => (&n.old, &n.tmp),
+        false => (&n.tmp, &n.new),
       };
       if state.is_verb && !state.is_quiet {
         println!("{from} >> {to}")
@@ -61,10 +60,14 @@ mod state {
       arg_clash: "\nERROR: Don't mix -x and -p ya dingus!\n\n",
       no_run: "\nERROR: Need -x or -p to run\n\n",
     };
-    match (args_contain("x"), args_contain("p"), args_contain("h")) {
-      (_, _, true) => print::help(errors.help),
-      (true, true, _) => print::help(errors.arg_clash),
-      (false, false, _) => print::help(errors.no_run),
+    match (
+      args_contain("x") as usize,
+      args_contain("p") as usize,
+      args_contain("h") as usize,
+    ) {
+      (_, _, 1) => print::help(errors.help),
+      (1, 1, _) => print::help(errors.arg_clash),
+      (0, 0, _) => print::help(errors.no_run),
       _ => {}
     }
   }
@@ -118,15 +121,12 @@ mod get {
 
   fn names_tuple(i: usize, file: String) -> Names {
     let dir = file.rsplit('/').dropping(1);
-    let dirstr = dir
-      .clone()
-      .rfold(String::from(""), |a, w| [&a, w].join("/"));
-    println!("{dirstr}");
+    let dir_str = dir.clone().rev().join("/");
     Names {
-      tmp: format!("{}{}{}", dirstr, i, ".brtmp"),
+      tmp: format!("{}{}{}", dir_str, i, ".brtmp"),
       new: format!(
         "{}/{}{}.{}",
-        dirstr,
+        dir_str,
         dir.take(2).fold(String::from(""), |a, w| [w, &a].join("")),
         i,
         file.split('.').last().unwrap_or("")
