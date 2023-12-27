@@ -39,13 +39,10 @@ Files are first renamed to temporary files to avoid clobbering.
 
 If anything goes wrong, check for .brtmp files. Nothing should be lost.
 
-This prog is nondestructive and should not delete or overwite files.
+This prog is nondestructive and should not delete or overwrite files.
 
 But will cheerfully, and very quickly, rename every file on your PC if allowed, breaking ***everything***. Do be careful.
 
 For instance, `./batch_renamer -x -g "*"` run from the root dir would be a killer.
 
 **Look first to see if it will do what you want.**
-
-## todo 
-* Optional rename depth (one dir, three dirs) 
