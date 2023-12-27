@@ -22,13 +22,18 @@ etc.
 for example
 `./batch_renamer -xv -g "*.png"`
 
-* **-h**                - Print help and exit.
-* **-p**                - Practice run, no file manipulation. Combine with -v.
-* **-x**                - Execute renaming, use with caution.
-* **-v**                - Verbose mode. Print actions to terminal
-* **-s**                - Optional. Sort by exif timestamp, ascending. Useful otherwise the program shuffles things around.
-* **-g "glob pattern"** - Optional. The next argument will be taken as a glob pattern to use. Globs for "*.jpg" by default.
+*  **-h**               - Print this screen and exit.
 
+*  **-v**               - Verbose terminal printing.
+*  **-q**               - Disable terminal printing entirely. Overrides -v.
+
+*  **-p**               - Practice run. Combine with -v to print what the script will do!
+*  **-x**               - Execute renaming. Use with caution.
+
+*  **-s**               - Optional Sort by EXIF timestamp ascending. Defaults to simple alphanumeric filename sort.
+*  **-g** "glob_string" - Optional string to glob files with.        Defaults to "*.jpg".
+*  **-d** <path>        - Optional path to run search from.          Defaults to directory the binary is run from.
+       
 ## notes
 
 Works recursively from the directory it is run from.
