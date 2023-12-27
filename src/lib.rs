@@ -116,7 +116,7 @@ mod get {
     pub new: String,
   }
 
-  fn jobs_tuple(i: usize, file: String) -> Names {
+  fn names_tuple(i: usize, file: String) -> Names {
     let dir = file.rsplit('/').dropping(1);
     let dirstr = dir
       .clone()
@@ -165,7 +165,7 @@ mod get {
       true => Some(
         get_files(is_sort, dir)
           .enumerate()
-          .map(|(i, file)| jobs_tuple(i, file))
+          .map(|(i, file)| names_tuple(i, file))
           .collect_vec(),
       ),
       false => None,
@@ -207,7 +207,6 @@ mod print {
  e.g. - ./batch_renamer -xvs -g "*.png" -d ./directory
                   ----
 options 
-        -h               - Print this screen and exit.
 
         -v               - Verbose terminal printing.
         -q               - Disable terminal printing entirely. Overrides -v.
