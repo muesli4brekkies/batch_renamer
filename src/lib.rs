@@ -1,5 +1,5 @@
 pub fn run() {
-  state::go(std::time::SystemTime::now(), get::file_list(), true);
+  state::recurse(std::time::SystemTime::now(), get::file_list(), true);
 }
 
 mod state {
@@ -7,7 +7,7 @@ mod state {
   use std::env;
   use std::{fs::rename, time::SystemTime};
 
-  pub(crate) fn go(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
+  pub(crate) fn recurse(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
     check_args();
     let state = get_state();
     file_list.iter().for_each(|n| {
@@ -23,7 +23,7 @@ mod state {
       };
     });
     match to_tmp {
-      true => go(start_time, file_list, false),
+      true => recurse(start_time, file_list, false),
       false => {
         if !state.is_quiet {
           print::info(start_time, file_list.len() as f32)
@@ -127,7 +127,7 @@ mod get {
       new: format!(
         "{}/{}{}.{}",
         dir_str,
-        dir.take(2).fold(String::from(""), |a, w| [w, &a].join("")),
+        dir.take(2).fold(String::new(), |a, w| [w, &a].join("")),
         i,
         file.split('.').last().unwrap_or("")
       ),

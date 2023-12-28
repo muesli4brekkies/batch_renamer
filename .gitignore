@@ -2,7 +2,7 @@
 /src/test/
 cargo.toml
 cargo.lock
-
+launch.json
 
 # Added by cargo
 #
