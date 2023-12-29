@@ -7,20 +7,21 @@ mod state {
   use std::env;
   use std::{fs::rename, time::SystemTime};
 
-  pub(crate) fn recurse(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
+  pub fn recurse(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
     check_args();
     let state = get_state();
     file_list.iter().for_each(|n| {
-      let (from, to) = match to_tmp {
+      (|(to, from): (&String, &String)| {
+        if state.is_verb && !state.is_quiet {
+          println!("{from} >> {to}")
+        };
+        if state.is_exec {
+          rename(from, to).unwrap()
+        };
+      })(match to_tmp {
         true => (&n.old, &n.tmp),
         false => (&n.tmp, &n.new),
-      };
-      if state.is_verb && !state.is_quiet {
-        println!("{from} >> {to}")
-      };
-      if state.is_exec {
-        rename(from, to).unwrap()
-      };
+      })
     });
     match to_tmp {
       true => recurse(start_time, file_list, false),
