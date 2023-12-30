@@ -68,27 +68,33 @@ mod state {
     }
 
     pub fn get_glob_arg() -> String {
-      arg_get(true)
+      Arg::arg_get(Arg::Glob)
     }
 
     pub fn get_dir_arg() -> String {
-      arg_get(false)
+      Arg::arg_get(Arg::Dir)
     }
 
-    fn arg_get(is_glob: bool) -> String {
-      let default = String::from(if is_glob { "*.jpg" } else { "." });
-      env::args()
-        .enumerate()
-        .fold(None, |a, (i, arg)| {
-          match arg == if is_glob { "-g" } else { "-d" } {
-            true => match env::args().nth(i + 1) {
-              Some(r) => Some(r),
-              None => a,
-            },
-            false => a,
-          }
-        })
-        .unwrap_or(default)
+    enum Arg {
+      Glob,
+      Dir,
+    }
+    impl Arg {
+      fn arg_get(self) -> String {
+        let default = String::from(if let Arg::Glob = self { "*.jpg" } else { "." });
+        env::args()
+          .enumerate()
+          .fold(None, |a, (i, arg)| {
+            match arg == if let Arg::Glob = self { "-g" } else { "-d" } {
+              true => match env::args().nth(i + 1) {
+                Some(r) => Some(r),
+                None => a,
+              },
+              false => a,
+            }
+          })
+          .unwrap_or(default)
+      }
     }
   }
 }
@@ -215,7 +221,6 @@ options
   }
 
   pub fn info(start_time: SystemTime, num_files: f32, state: State) {
-    let (glob, root_dir) = (get_glob_arg(), get_dir_arg());
     let time_elapsed = SystemTime::now()
       .duration_since(start_time)
       .expect("\nTime has gone backwards. :(\n")
@@ -233,8 +238,8 @@ options
         true => "Sorted by EXIF date.",
         false => "NOT sorted",
       },
-      glob,
-      root_dir
+      get_glob_arg(),
+      get_dir_arg()
     );
   }
 }
