@@ -1,5 +1,5 @@
 pub fn run() {
-  state::double_tap(std::time::SystemTime::now(), get::file_list(), true);
+  state::run_loop(std::time::SystemTime::now(), get::dirs(), true);
 }
 
 mod state {
@@ -25,7 +25,7 @@ mod state {
     }
   }
 
-  pub fn double_tap(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
+  pub fn run_loop(start_time: SystemTime, file_list: Vec<Names>, to_tmp: bool) {
     check_args();
     let state = State::get();
     file_list.iter().for_each(|n| {
@@ -42,7 +42,7 @@ mod state {
       })
     });
     match to_tmp {
-      true => double_tap(start_time, file_list, false),
+      true => run_loop(start_time, file_list, false),
       false => {
         if !state.is_quiet {
           print::info(start_time, file_list.len() as f32, state)
@@ -104,9 +104,8 @@ mod get {
     State,
   };
   use exif::{Field, In, Reader, Tag};
-  use glob::glob;
   use itertools::Itertools;
-  use std::{fs::File, io::BufReader};
+  use std::{fs::File, io::BufReader, path::PathBuf};
   use walkdir::{DirEntry, WalkDir};
 
   pub struct Names {
@@ -116,7 +115,7 @@ mod get {
   }
 
   impl Names {
-    fn get(i: usize, file: String) -> Names {
+    fn get((i, file): (usize, String)) -> Names {
       let dir = file.rsplit('/').dropping(1);
       let dir_str = dir.clone().rev().join("/");
       Names {
@@ -133,26 +132,22 @@ mod get {
     }
   }
 
-  pub fn file_list() -> Vec<Names> {
+  pub fn dirs() -> Vec<Names> {
     let is_sort = State::get().is_sort;
     WalkDir::new(get_dir_arg())
       .min_depth(2)
       .into_iter()
       .filter_map(|dir| match dir {
-        Ok(r) => r.file_type().is_dir().then(|| {
-          get_files(is_sort, r)
-            .enumerate()
-            .map(|(i, file)| Names::get(i, file))
-            .collect_vec()
-        }),
+        Ok(r) => r.file_type().is_dir().then(|| get_names(is_sort, r)),
         Err(_) => None,
       })
       .flatten()
       .collect_vec()
   }
 
-  fn get_files(is_sort: bool, dir: DirEntry) -> std::vec::IntoIter<String> {
-    let get_exif_date = |file: &String| -> String {
+  fn get_names(is_sort: bool, dir: DirEntry) -> Vec<Names> {
+    use glob::{glob, GlobError};
+    fn get_exif_date(file: &String) -> String {
       match Reader::new().read_from_container(&mut BufReader::new(File::open(file).unwrap())) {
         Ok(exif) => exif
           .get_field(Tag::DateTime, In::PRIMARY)
@@ -160,20 +155,26 @@ mod get {
         Err(_) => None,
       }
       .unwrap_or(String::from('0'))
-    };
-    let glob_pattern = &[
-      dir.into_path().as_os_str().to_string_lossy().to_string(),
-      get_glob_arg(),
-    ]
-    .join("/");
-    let files = glob(glob_pattern)
-      .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
-      .map(|path_buff| path_buff.unwrap().into_os_string().into_string().unwrap());
-    if is_sort {
-      files.sorted_by_key(get_exif_date)
-    } else {
-      files.sorted()
     }
+
+    fn unwrap_pathbuf(path: Result<PathBuf, GlobError>) -> String {
+      path.unwrap().into_os_string().into_string().unwrap()
+    }
+
+    fn dir_ent_to_string(dir: DirEntry) -> String {
+      dir.into_path().as_os_str().to_string_lossy().to_string()
+    }
+
+    glob(&[dir_ent_to_string(dir), get_glob_arg()].join("/"))
+      .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
+      .map(unwrap_pathbuf)
+      .sorted_by_key(|f| match is_sort {
+        true => get_exif_date(f),
+        false => String::from("0"),
+      })
+      .enumerate()
+      .map(Names::get)
+      .collect_vec()
   }
 }
 
@@ -225,6 +226,7 @@ options
       .duration_since(start_time)
       .expect("\nTime has gone backwards. :(\n")
       .as_secs_f32();
+
     println!(
       "{} files in {} seconds. {:.0} files/sec\n{}\n{}\nglob = \"{}\"\nroot dir = \"{}\"",
       num_files,
