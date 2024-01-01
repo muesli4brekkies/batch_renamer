@@ -68,11 +68,11 @@ mod state {
     }
 
     pub fn get_glob_arg() -> String {
-      Arg::arg_get(Arg::Glob)
+      Arg::get_arg(Arg::Glob)
     }
 
     pub fn get_dir_arg() -> String {
-      Arg::arg_get(Arg::Dir)
+      Arg::get_arg(Arg::Dir)
     }
 
     enum Arg {
@@ -80,19 +80,16 @@ mod state {
       Dir,
     }
     impl Arg {
-      fn arg_get(self) -> String {
+      fn get_arg(self) -> String {
         let default = String::from(if let Arg::Glob = self { "*.jpg" } else { "." });
+        let filter_next = |a, (i, arg)| match env::args().nth(i + 1) {
+          Some(r) if arg == if let Arg::Glob = self { "-g" } else { "-d" } => Some(r),
+          _ => a,
+        };
+
         env::args()
           .enumerate()
-          .fold(None, |a, (i, arg)| {
-            match arg == if let Arg::Glob = self { "-g" } else { "-d" } {
-              true => match env::args().nth(i + 1) {
-                Some(r) => Some(r),
-                None => a,
-              },
-              false => a,
-            }
-          })
+          .fold(None, filter_next)
           .unwrap_or(default)
       }
     }
@@ -103,7 +100,7 @@ mod get {
     args::{get_dir_arg, get_glob_arg},
     State,
   };
-  use exif::{Field, In, Reader, Tag};
+  use glob::{glob, GlobError};
   use itertools::Itertools;
   use std::{fs::File, io::BufReader, path::PathBuf};
   use walkdir::{DirEntry, WalkDir};
@@ -116,13 +113,17 @@ mod get {
 
   impl Names {
     fn get((i, file): (usize, String)) -> Names {
+      fn attach_backwards(a: String, w: &str) -> String {
+        [w, &a].join("")
+      }
       let dir = file.rsplit('/').dropping(1);
       let dir_str = dir.clone().rev().join("/");
+
       Names {
         new: format!(
           "{}/{}{}.{}",
           dir_str,
-          dir.take(2).fold(String::new(), |a, w| [w, &a].join("")),
+          dir.take(2).fold(String::new(), attach_backwards),
           i,
           file.split('.').last().unwrap_or("")
         ),
@@ -134,37 +135,19 @@ mod get {
 
   pub fn dirs() -> Vec<Names> {
     let is_sort = State::get().is_sort;
+
     WalkDir::new(get_dir_arg())
       .min_depth(2)
       .into_iter()
       .filter_map(|dir| match dir {
-        Ok(r) => r.file_type().is_dir().then(|| get_names(is_sort, r)),
+        Ok(r) => r.file_type().is_dir().then(|| glob_files(is_sort, r)),
         Err(_) => None,
       })
       .flatten()
       .collect_vec()
   }
 
-  fn get_names(is_sort: bool, dir: DirEntry) -> Vec<Names> {
-    use glob::{glob, GlobError};
-    fn get_exif_date(file: &String) -> String {
-      match Reader::new().read_from_container(&mut BufReader::new(File::open(file).unwrap())) {
-        Ok(exif) => exif
-          .get_field(Tag::DateTime, In::PRIMARY)
-          .map(|date| Field::display_value(date).to_string()),
-        Err(_) => None,
-      }
-      .unwrap_or(String::from('0'))
-    }
-
-    fn unwrap_pathbuf(path: Result<PathBuf, GlobError>) -> String {
-      path.unwrap().into_os_string().into_string().unwrap()
-    }
-
-    fn dir_ent_to_string(dir: DirEntry) -> String {
-      dir.into_path().as_os_str().to_string_lossy().to_string()
-    }
-
+  fn glob_files(is_sort: bool, dir: DirEntry) -> Vec<Names> {
     glob(&[dir_ent_to_string(dir), get_glob_arg()].join("/"))
       .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
       .map(unwrap_pathbuf)
@@ -176,15 +159,29 @@ mod get {
       .map(Names::get)
       .collect_vec()
   }
+
+  fn get_exif_date(file: &String) -> String {
+    use exif::{Field, In, Reader, Tag};
+
+    match Reader::new().read_from_container(&mut BufReader::new(File::open(file).unwrap())) {
+      Ok(exif) => exif
+        .get_field(Tag::DateTime, In::PRIMARY)
+        .map(|date| Field::display_value(date).to_string()),
+      Err(_) => None,
+    }
+    .unwrap_or(String::from('0'))
+  }
+
+  fn unwrap_pathbuf(path: Result<PathBuf, GlobError>) -> String {
+    path.unwrap().into_os_string().into_string().unwrap()
+  }
+
+  fn dir_ent_to_string(dir: DirEntry) -> String {
+    dir.into_path().as_os_str().to_string_lossy().to_string()
+  }
 }
 
 mod print {
-  use crate::state::{
-    args::{get_dir_arg, get_glob_arg},
-    State,
-  };
-  use std::time::SystemTime;
-
   pub struct Errors {
     pub help: Error,
     pub arg_clash: Error,
@@ -211,7 +208,7 @@ options
         -p               - Practice run. Combine with -v to print what the script will do!
         -x               - Execute renaming. Use with caution.
 
-        -s               - Optional Sort by EXIF timestamp ascending. Defaults to simple alphanumeric filename sort.
+        -s               - Optional Sort by EXIF timestamp ascending. Default is not to sort, so the files are ordered however the OS picks them up.
         -g "glob_string" - Optional string to glob files with.        Defaults to "*.jpg".
         -d <path>        - Optional path to run search from.          Defaults to directory the binary is run from.
         "#,
@@ -221,9 +218,15 @@ options
     }
   }
 
+  use crate::state::{
+    args::{get_dir_arg, get_glob_arg},
+    State,
+  };
+  use std::time::SystemTime;
+
   pub fn info(start_time: SystemTime, num_files: f32, state: State) {
-    let time_elapsed = SystemTime::now()
-      .duration_since(start_time)
+    let time_elapsed = start_time
+      .elapsed()
       .expect("\nTime has gone backwards. :(\n")
       .as_secs_f32();
 

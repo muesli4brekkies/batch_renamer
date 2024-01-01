@@ -30,7 +30,7 @@ for example
 *  **-p**               - Practice run. Combine with -v to print what the script will do!
 *  **-x**               - Execute renaming. Use with caution.
 
-*  **-s**               - Optional Sort by EXIF timestamp ascending. Defaults to simple alphanumeric filename sort.
+*  **-s**               - Optional Sort by EXIF timestamp ascending. Default is not to sort, so the files are ordered however the OS picks them up.
 *  **-g** "glob_string" - Optional string to glob files with.        Defaults to "*.jpg".
 *  **-d** <path>        - Optional path to run search from.          Defaults to directory the binary is run from.
        
