@@ -79,6 +79,7 @@ mod state {
       Glob,
       Dir,
     }
+
     impl Arg {
       fn get_arg(self) -> String {
         let default = String::from(if let Arg::Glob = self { "*.jpg" } else { "." });
@@ -95,11 +96,13 @@ mod state {
     }
   }
 }
+
 mod get {
   use crate::state::{
     args::{get_dir_arg, get_glob_arg},
     State,
   };
+  use exif::{Field, In, Reader, Tag};
   use glob::{glob, GlobError};
   use itertools::Itertools;
   use std::{fs::File, io::BufReader, path::PathBuf};
@@ -161,8 +164,6 @@ mod get {
   }
 
   fn get_exif_date(file: &String) -> String {
-    use exif::{Field, In, Reader, Tag};
-
     match Reader::new().read_from_container(&mut BufReader::new(File::open(file).unwrap())) {
       Ok(exif) => exif
         .get_field(Tag::DateTime, In::PRIMARY)
@@ -182,6 +183,12 @@ mod get {
 }
 
 mod print {
+  use crate::state::{
+    args::{get_dir_arg, get_glob_arg},
+    State,
+  };
+  use std::time::SystemTime;
+
   pub struct Errors {
     pub help: Error,
     pub arg_clash: Error,
@@ -217,12 +224,6 @@ options
       std::process::exit(2)
     }
   }
-
-  use crate::state::{
-    args::{get_dir_arg, get_glob_arg},
-    State,
-  };
-  use std::time::SystemTime;
 
   pub fn info(start_time: SystemTime, num_files: f32, state: State) {
     let time_elapsed = start_time
