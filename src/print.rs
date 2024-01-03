@@ -2,7 +2,7 @@ use crate::{
   args::{get_dir_arg, get_glob_arg},
   state::State,
 };
-use std::time::SystemTime;
+use std::time::Instant;
 
 pub struct Errors {
   pub help: Error,
@@ -40,11 +40,8 @@ options
   }
 }
 
-pub fn info(start_time: SystemTime, num_files: f32, state: State) {
-  let time_elapsed = start_time
-    .elapsed()
-    .expect("\nTime has gone backwards. :(\n")
-    .as_secs_f32();
+pub fn info(start_time: Instant, num_files: f32, state: State) {
+  let time_elapsed = start_time.elapsed().as_secs_f32();
 
   println!(
     "{} files in {} seconds. {:.0} files/sec\n{}\n{}\nglob = \"{}\"\nroot dir = \"{}\"",

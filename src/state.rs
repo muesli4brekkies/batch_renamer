@@ -1,5 +1,5 @@
 use crate::{args, names, print};
-use std::{fs::rename, time::SystemTime};
+use std::{fs::rename, time::Instant};
 
 pub struct State {
   pub is_verb: bool,
@@ -20,24 +20,23 @@ impl State {
 }
 
 pub fn run() {
-  run_loop(std::time::SystemTime::now(), names::dirs(), true);
+  run_loop(Instant::now(), names::dirs(), true);
 }
 
-pub fn run_loop(start_time: SystemTime, file_list: Vec<names::Names>, to_tmp: bool) {
+pub fn run_loop(start_time: Instant, file_list: Vec<names::Names>, to_tmp: bool) {
   args::check_args();
   let state = State::get();
   file_list.iter().for_each(|n| {
-    (|(from, to): (&String, &String)| {
-      if state.is_verb && !state.is_quiet {
-        println!("{from} >> {to}")
-      };
-      if state.is_exec {
-        rename(from, to).unwrap()
-      };
-    })(match to_tmp {
+    let (from, to) = match to_tmp {
       true => (&n.old, &n.tmp),
       false => (&n.tmp, &n.new),
-    })
+    };
+    if state.is_verb && !state.is_quiet {
+      println!("{from} >> {to}")
+    };
+    if state.is_exec {
+      rename(from, to).unwrap()
+    };
   });
   match to_tmp {
     true => run_loop(start_time, file_list, false),

@@ -1,5 +1,6 @@
 /target
-/src/test/
+/test
+br.sh
 cargo.toml
 cargo.lock
 launch.json
