@@ -1,5 +1,5 @@
 use crate::{args, names, print};
-use std::{fs::rename, time::Instant};
+use std::{fs, io, time};
 
 pub struct State {
   pub is_verb: bool,
@@ -19,14 +19,18 @@ impl State {
   }
 }
 
-pub fn run() {
-  run_loop(Instant::now(), names::dirs(), true);
+pub fn run() -> io::Result<()> {
+  args::check_args();
+  run_loop(time::Instant::now(), names::get_names(), true)
 }
 
-pub fn run_loop(start_time: Instant, file_list: Vec<names::Names>, to_tmp: bool) {
-  args::check_args();
+pub fn run_loop(
+  start_time: time::Instant,
+  file_list: Vec<names::Names>,
+  to_tmp: bool,
+) -> io::Result<()> {
   let state = State::get();
-  file_list.iter().for_each(|n| {
+  file_list.iter().try_for_each(|n| -> io::Result<()> {
     let (from, to) = match to_tmp {
       true => (&n.old, &n.tmp),
       false => (&n.tmp, &n.new),
@@ -35,15 +39,17 @@ pub fn run_loop(start_time: Instant, file_list: Vec<names::Names>, to_tmp: bool)
       println!("{from} >> {to}")
     };
     if state.is_exec {
-      rename(from, to).unwrap()
-    };
-  });
+      fs::rename(from, to)?
+    }
+    Ok(())
+  })?;
   match to_tmp {
     true => run_loop(start_time, file_list, false),
     false => {
       if !state.is_quiet {
         print::info(start_time, file_list.len() as f32, state)
       }
+      Ok(())
     }
   }
 }

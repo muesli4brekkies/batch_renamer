@@ -4,21 +4,21 @@ use crate::{
 };
 use std::time::Instant;
 
-pub struct Errors {
-  pub help: Error,
-  pub arg_clash: Error,
-  pub no_run: Error,
+pub struct ArgErrors {
+  pub help: ArgError,
+  pub arg_clash: ArgError,
+  pub no_run: ArgError,
 }
 
-pub const ERRORS: Errors = Errors {
-  help: Error("\nHELP:\n\n"),
-  arg_clash: Error("\nERROR: Don't mix -x and -p ya dingus!\n\n"),
-  no_run: Error("\nERROR: Need -x or -p to run\n\n"),
+pub const ERRORS: ArgErrors = ArgErrors {
+  help: ArgError("\nHELP:\n\n"),
+  arg_clash: ArgError("\nERROR: Don't mix -x and -p ya dingus!\n\n"),
+  no_run: ArgError("\nERROR: Need -x or -p to run\n\n"),
 };
 
-pub struct Error(&'static str);
+pub struct ArgError(&'static str);
 
-impl Error {
+impl ArgError {
   pub fn print(&self) {
     println!(
       r#"{}usage - ./batch_renamer -h -[vq] -[px] -s -g "glob-string" -d <path>
