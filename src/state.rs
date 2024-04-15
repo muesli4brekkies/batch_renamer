@@ -1,4 +1,4 @@
-use crate::{args, names, print};
+use crate::{args, names, print, thread::ThreadPool};
 use std::{fs, io, time};
 
 pub struct State {
@@ -29,20 +29,20 @@ pub fn run_loop(
   file_list: Vec<names::Names>,
   to_tmp: bool,
 ) -> io::Result<()> {
+  let pool = ThreadPool::new().unwrap();
   let state = State::get();
-  file_list.iter().try_for_each(|n| -> io::Result<()> {
+  file_list.iter().for_each(|n| {
     let (from, to) = match to_tmp {
-      true => (&n.old, &n.tmp),
-      false => (&n.tmp, &n.new),
+      true => (n.old.clone(), n.tmp.clone()),
+      false => (n.tmp.clone(), n.new.clone()),
     };
     if state.is_verb && !state.is_quiet {
       println!("{from} >> {to}")
     };
     if state.is_exec {
-      fs::rename(from, to)?
+      pool.execute(move || fs::rename(from.clone(), to.clone()).unwrap());
     }
-    Ok(())
-  })?;
+  });
   match to_tmp {
     true => run_loop(start_time, file_list, false),
     false => {

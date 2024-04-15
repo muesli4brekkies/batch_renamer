@@ -2,8 +2,7 @@ use crate::{
   args::{get_dir_arg, get_glob_arg},
   state::State,
 };
-use exif;
-use glob;
+
 use itertools::Itertools;
 use std::{fs::File, io::BufReader, path::PathBuf};
 use walkdir::{DirEntry, WalkDir};
@@ -19,11 +18,11 @@ pub fn get_names() -> Vec<Names> {
       Err(_) => None,
     })
     .flatten()
-    .collect_vec()
+    .collect()
 }
 
 fn glob_files(is_sort: bool, dir: DirEntry) -> Vec<Names> {
-  glob::glob(&[dir_ent_to_string(dir), get_glob_arg()].join("/"))
+  glob::glob(&format!("{}/{}", dir_ent_to_string(dir), get_glob_arg()))
     .expect("Bad glob pattern! Try something like \"*.jpg\" or similar")
     .map(unwrap_pathbuf)
     .sorted_by_key(|f| match is_sort {
@@ -32,18 +31,18 @@ fn glob_files(is_sort: bool, dir: DirEntry) -> Vec<Names> {
     })
     .enumerate()
     .map(Names::construct)
-    .collect_vec()
+    .collect()
 }
 
 fn get_exif_date(file: &str) -> String {
-  match exif::Reader::new().read_from_container(&mut BufReader::new(File::open(file).unwrap())) {
-    Ok(exif) => exif
-      .get_field(exif::Tag::DateTime, exif::In::PRIMARY)
-      .map(exif::Field::display_value)
-      .map(|m| m.to_string()),
-    Err(_) => None,
-  }
-  .unwrap_or(String::from('0'))
+  exif::Reader::new()
+    .read_from_container(&mut BufReader::new(File::open(file).unwrap()))
+    .ok()
+    .and_then(|e| {
+      e.get_field(exif::Tag::DateTime, exif::In::PRIMARY)
+        .map(|m| m.display_value().to_string())
+    })
+    .unwrap_or(String::from('0'))
 }
 
 fn unwrap_pathbuf(path: Result<PathBuf, glob::GlobError>) -> String {
@@ -61,9 +60,6 @@ pub struct Names {
 }
 impl Names {
   fn construct((i, file): (usize, String)) -> Names {
-    fn attach_backwards(a: String, w: &str) -> String {
-      [w, &a].join("")
-    }
     let dir = file.rsplit('/').dropping(1);
     let dir_str = dir.clone().rev().join("/");
 
@@ -71,9 +67,12 @@ impl Names {
       new: format!(
         "{}/{}{}.{}",
         dir_str,
-        dir.take(2).fold(String::new(), attach_backwards),
+        {
+          let (a, b) = dir.take(2).collect_tuple().unwrap();
+          [b, a].join("")
+        },
         i,
-        file.split('.').last().unwrap_or("")
+        file.split('.').last().unwrap_or_default()
       ),
       tmp: format!("{}{}{}", dir_str, i, ".brtmp"),
       old: file,
