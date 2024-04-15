@@ -29,7 +29,7 @@ pub fn run_loop(
   file_list: Vec<names::Names>,
   to_tmp: bool,
 ) -> io::Result<()> {
-  let pool = ThreadPool::new().unwrap();
+  let pool = ThreadPool::new()?;
   let state = State::get();
   file_list.iter().for_each(|n| {
     let (from, to) = match to_tmp {
@@ -40,7 +40,10 @@ pub fn run_loop(
       println!("{from} >> {to}")
     };
     if state.is_exec {
-      pool.execute(move || fs::rename(from.clone(), to.clone()).unwrap());
+      pool.execute(move || match fs::rename(from.clone(), to.clone()) {
+        Ok(_) => (),
+        Err(e) => eprintln!("{} {}", from, e.to_string()),
+      });
     }
   });
   match to_tmp {
